@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nueva Venta - CellStore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .neon-border { border: 1px solid rgba(14, 165, 233, 0.3); }
+        .neon-glow { box-shadow: 0 0 15px rgba(14, 165, 233, 0.15); }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+    <div class="w-full bg-slate-900 min-h-screen flex flex-col justify-between">
+
+        <!-- Cabecera -->
+        <header class="bg-slate-900/90 backdrop-blur-md p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+            <a href="index.html" class="text-cyan-400 font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl border border-cyan-500/30">⬅ Volver</a>
+            <h1 class="text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">REGISTRAR VENTA</h1>
+            <span class="text-[11px] text-slate-500 px-3 py-2 font-mono">🖨️ RawBT</span>
+        </header>
+
+        <!-- Formulario de Venta -->
+        <main class="p-4 flex-grow space-y-4">
+            <div class="bg-slate-900/80 p-4 rounded-2xl neon-border neon-glow">
+                <h2 class="font-bold text-cyan-400 text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>⚡</span> Seleccionar Tipo de Venta
+                </h2>
+
+                <div class="flex gap-1.5 mb-4">
+                    <button type="button" onclick="cambiarTipoVenta('celular')" id="btnTabCel" class="flex-1 py-2 text-[11px] font-bold rounded-xl bg-cyan-500 text-slate-950 transition">Celular</button>
+                    <button type="button" onclick="cambiarTipoVenta('accesorio')" id="btnTabAcc" class="flex-1 py-2 text-[11px] font-bold rounded-xl bg-slate-800 text-slate-300 transition">Accesorio</button>
+                    <button type="button" onclick="cambiarTipoVenta('hidrogel')" id="btnTabHid" class="flex-1 py-2 text-[11px] font-bold rounded-xl bg-slate-800 text-slate-300 transition">Hidrogel</button>
+                    <button type="button" onclick="cambiarTipoVenta('skin')" id="btnTabSkin" class="flex-1 py-2 text-[11px] font-bold rounded-xl bg-slate-800 text-slate-300 transition">Skin</button>
+                </div>
+
+                <form id="formVenta" class="space-y-3">
+                    <div id="seccionCampos">
+                        <!-- Contenedor dinámico -->
+                    </div>
+
+                    <!-- Nombre del Comprador -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Nombre del Comprador / Cliente</label>
+                        <input type="text" id="nombreComprador" placeholder="Ej. Juan Pérez" required class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-cyan-500 focus:outline-none text-slate-100">
+                    </div>
+
+                    <button type="submit" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-95 text-slate-950 font-black p-3 rounded-xl shadow-lg shadow-cyan-500/20 transition-all text-xs tracking-wider uppercase mt-2">
+                        Completar Venta e Imprimir
+                    </button>
+                </form>
+            </div>
+
+            <!-- Ventas del Día -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider">🛒 Ventas Realizadas Hoy</h3>
+                    <span id="contadorVentas" class="text-cyan-400 font-mono text-[10px]">0 Ventas</span>
+                </div>
+                <div id="listaVentas" class="space-y-2">
+                    <!-- Dinámico -->
+                </div>
+            </div>
+        </main>
+
+        <footer class="bg-slate-950 p-3 text-center text-[10px] font-mono text-slate-500 border-t border-slate-800 mt-auto">
+            SALES & PRINT CORE // RAWBT 🖨️
+        </footer>
+    </div>
+
+    <script>
+        var tipoActual = 'celular';
+        var CLASE_INPUT = "w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-cyan-500 focus:outline-none text-slate-100";
+        var CLASE_LABEL = "block text-[11px] font-semibold text-slate-400 mb-1";
+
+        function leerStorage(clave) {
+            try {
+                var item = localStorage.getItem(clave);
+                return item ? JSON.parse(item) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function esc(t) {
+            return String(t).replace(/[&<>"']/g, function(c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                cambiarTipoVenta('celular');
+                mostrarVentasRealizadas();
+            } catch (e) {
+                console.log(e);
+            }
+        });
+
+        // Quita acentos y caracteres que la impresora no soporta
+        function sinAcentos(t) {
+            return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                    .replace(/¡/g, "").replace(/¿/g, "")
+                    .replace(/[^\x00-\xFF]/g, "");
+        }
+
+        // Imprime usando la app RawBT (Android)
+        function imprimirTicket(venta) {
+            try {
+                var t = "\x1B\x40\x1B\x61\x01\x1B\x45\x01";
+                t += "=== CELLSTORE ===\nComprobante de Venta\n" +
+                     new Date().toLocaleDateString() + " - " + venta.hora +
+                     "\n------------------------------\n";
+                t += "\x1B\x61\x00\x1B\x45\x00";
+                t += "Cliente: " + venta.cliente + "\nItem: " + venta.descripcion + "\n";
+                if (venta.imei && venta.imei !== 'N/A') {
+                    t += "IMEI: " + venta.imei + "\n";
+                }
+                t += "Total Cobrado: Bs " + venta.montoVenta.toFixed(2) +
+                     "\n------------------------------\n";
+                t += "\x1B\x61\x01\n\n\n_______________ _______________\n" +
+                     "Firma Vendedor  Firma Comprador\n\nGracias por su preferencia!\n\n\n";
+
+                var b64 = btoa(sinAcentos(t));
+                window.location.href = "intent:base64," + b64 +
+                    "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;";
+            } catch (error) {
+                alert("Error al preparar el ticket: " + error.message);
+            }
+        }
+
+        function reimprimirVenta(index) {
+            var ventas = leerStorage('ventas_realizadas');
+            if (ventas[index]) {
+                imprimirTicket(ventas[index]);
+            }
+        }
+
+        function mensajeSinStock(texto) {
+            return '<div class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center"><p class="text-xs text-rose-400">' + texto + '</p></div>';
+        }
+
+        function cambiarTipoVenta(tipo) {
+            tipoActual = tipo;
+
+            var tabs = { celular: 'btnTabCel', accesorio: 'btnTabAcc', hidrogel: 'btnTabHid', skin: 'btnTabSkin' };
+            for (var k in tabs) {
+                document.getElementById(tabs[k]).className = "flex-1 py-2 text-[11px] font-bold rounded-xl transition " +
+                    (k === tipo ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30" : "bg-slate-800 text-slate-300");
+            }
+
+            var contenedor = document.getElementById('seccionCampos');
+            contenedor.innerHTML = '';
+
+            if (tipo === 'celular') {
+                var celulares = leerStorage('celulares_inventario');
+                if (celulares.length === 0) {
+                    contenedor.innerHTML = mensajeSinStock('No hay celulares en stock.');
+                    return;
+                }
+                var opcionesHTML = '';
+                for (var i = 0; i < celulares.length; i++) {
+                    var c = celulares[i];
+                    opcionesHTML += '<option value="' + i + '">' + esc(c.modelo || 'Celular') + ' - IMEI: ' + esc(c.imei || 'N/A') + ' (Bs ' + (c.precioVenta || 0) + ')</option>';
+                }
+                contenedor.innerHTML = '<div><label class="' + CLASE_LABEL + '">Seleccionar Celular</label><select id="indexCelular" class="' + CLASE_INPUT + '">' + opcionesHTML + '</select></div>';
+
+            } else if (tipo === 'accesorio') {
+                var accesorios = leerStorage('accesorios_inventario');
+                if (accesorios.length === 0) {
+                    contenedor.innerHTML = mensajeSinStock('No hay accesorios en stock.');
+                    return;
+                }
+                var opcionesHTML = '';
+                for (var i = 0; i < accesorios.length; i++) {
+                    var a = accesorios[i];
+                    opcionesHTML += '<option value="' + i + '">' + esc(a.nombre || 'Accesorio') + ' (Stock: ' + (a.stock || 0) + ') - Bs ' + (a.precio || 0) + '</option>';
+                }
+                contenedor.innerHTML = '<div class="space-y-2"><div><label class="' + CLASE_LABEL + '">Seleccionar Accesorio</label><select id="indexAccesorio" class="' + CLASE_INPUT + '">' + opcionesHTML + '</select></div><div><label class="' + CLASE_LABEL + '">Cantidad</label><input type="number" id="cantAccesorioVenta" value="1" min="1" class="' + CLASE_INPUT + '"></div></div>';
+
+            } else if (tipo === 'hidrogel' || tipo === 'skin') {
+                var inv = leerStorage('hidrogel_inventario');
+                var opcionesHTML = '';
+                var primerPrecio = 0;
+                var hay = false;
+                for (var i = 0; i < inv.length; i++) {
+                    var p = inv[i];
+                    if (p.categoria === tipo && p.stock > 0) {
+                        if (!hay) { primerPrecio = p.precioVenta || 0; hay = true; }
+                        opcionesHTML += '<option value="' + i + '">' + esc(p.nombre) + ' (Stock: ' + p.stock + ') - Bs ' + (p.precioVenta || 0) + '</option>';
+                    }
+                }
+                if (!hay) {
+                    var nombreCat = tipo === 'skin' ? 'skins' : 'hidrogeles';
+                    contenedor.innerHTML = mensajeSinStock('No hay ' + nombreCat + ' en stock. Regístralos en el módulo Hidrogel & Skins.');
+                    return;
+                }
+                var etiqueta = tipo === 'skin' ? 'Seleccionar Skin' : 'Seleccionar Hidrogel';
+                contenedor.innerHTML =
+                    '<div class="space-y-2">' +
+                        '<div><label class="' + CLASE_LABEL + '">' + etiqueta + '</label>' +
+                            '<select id="indexHidrogel" onchange="actualizarPrecioHidrogel()" class="' + CLASE_INPUT + '">' + opcionesHTML + '</select></div>' +
+                        '<div class="grid grid-cols-2 gap-2">' +
+                            '<div><label class="' + CLASE_LABEL + '">Cantidad</label>' +
+                                '<input type="number" id="cantHidrogelVenta" value="1" min="1" step="1" class="' + CLASE_INPUT + '"></div>' +
+                            '<div><label class="' + CLASE_LABEL + '">Precio c/u (Bs)</label>' +
+                                '<input type="number" id="precioHidrogelVenta" value="' + primerPrecio + '" step="0.01" min="0" required class="' + CLASE_INPUT + ' font-bold text-cyan-400"></div>' +
+                        '</div>' +
+                    '</div>';
+            }
+        }
+
+        // Al elegir otro producto, carga su precio de venta
+        function actualizarPrecioHidrogel() {
+            var sel = document.getElementById('indexHidrogel');
+            if (!sel) return;
+            var inv = leerStorage('hidrogel_inventario');
+            var prod = inv[sel.value];
+            if (prod) {
+                document.getElementById('precioHidrogelVenta').value = prod.precioVenta || 0;
+            }
+        }
+
+        document.getElementById('formVenta').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var cliente = document.getElementById('nombreComprador').value.trim();
+            if (!cliente) {
+                alert("Ingresa el nombre del comprador.");
+                return;
+            }
+
+            var ventas = leerStorage('ventas_realizadas');
+            var hora = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            var nuevaVenta = null;
+
+            if (tipoActual === 'celular') {
+                var selectCel = document.getElementById('indexCelular');
+                if (!selectCel) return;
+                var idx = selectCel.value;
+                var celulares = leerStorage('celulares_inventario');
+                if (celulares.length === 0 || idx === undefined) return;
+
+                var celVendido = celulares[idx];
+                var ganancia = parseFloat(celVendido.precioVenta || 0) - parseFloat(celVendido.precioCompra || 0);
+
+                nuevaVenta = {
+                    categoria: 'celular',
+                    cliente: cliente,
+                    descripcion: "Celular: " + (celVendido.modelo || ''),
+                    imei: celVendido.imei || 'N/A',
+                    montoVenta: parseFloat(celVendido.precioVenta || 0),
+                    ganancia: ganancia,
+                    hora: hora
+                };
+
+                celulares.splice(idx, 1);
+                localStorage.setItem('celulares_inventario', JSON.stringify(celulares));
+
+            } else if (tipoActual === 'accesorio') {
+                var selectAcc = document.getElementById('indexAccesorio');
+                if (!selectAcc) return;
+                var idx = selectAcc.value;
+                var cantVenta = parseInt(document.getElementById('cantAccesorioVenta').value) || 1;
+                var accesorios = leerStorage('accesorios_inventario');
+                if (accesorios.length === 0 || idx === undefined) return;
+
+                var acc = accesorios[idx];
+                if (acc.stock < cantVenta) {
+                    alert('Stock insuficiente.');
+                    return;
+                }
+
+                var montoTotal = (acc.precio || 0) * cantVenta;
+                // Si el accesorio guarda su costo (precioCompra), se descuenta de la ganancia
+                var costoAcc = (parseFloat(acc.precioCompra) || 0) * cantVenta;
+
+                nuevaVenta = {
+                    categoria: 'accesorio',
+                    cliente: cliente,
+                    descripcion: "Accesorio: " + (acc.nombre || '') + " (x" + cantVenta + ")",
+                    imei: null,
+                    montoVenta: montoTotal,
+                    ganancia: montoTotal - costoAcc,
+                    hora: hora
+                };
+
+                acc.stock -= cantVenta;
+                localStorage.setItem('accesorios_inventario', JSON.stringify(accesorios));
+
+            } else if (tipoActual === 'hidrogel' || tipoActual === 'skin') {
+                var selectH = document.getElementById('indexHidrogel');
+                if (!selectH) return;
+                var inv = leerStorage('hidrogel_inventario');
+                var prod = inv[selectH.value];
+
+                if (!prod || prod.categoria !== tipoActual) {
+                    alert('Producto no válido.');
+                    return;
+                }
+
+                var cant = parseInt(document.getElementById('cantHidrogelVenta').value, 10);
+                if (isNaN(cant) || cant < 1) {
+                    alert('Ingresa una cantidad válida.');
+                    return;
+                }
+                if (prod.stock < cant) {
+                    alert('Stock insuficiente. Solo quedan ' + prod.stock + ' piezas.');
+                    return;
+                }
+
+                var precioUnit = parseFloat(document.getElementById('precioHidrogelVenta').value);
+                if (isNaN(precioUnit) || precioUnit < 0) {
+                    alert('Ingresa un precio válido.');
+                    return;
+                }
+
+                var montoH = precioUnit * cant;
+                var costoH = (parseFloat(prod.precioCompra) || 0) * cant;
+
+                nuevaVenta = {
+                    categoria: tipoActual,
+                    cliente: cliente,
+                    descripcion: (tipoActual === 'skin' ? "Skin: " : "Hidrogel: ") + prod.nombre + " (x" + cant + ")",
+                    imei: null,
+                    montoVenta: montoH,
+                    ganancia: montoH - costoH,
+                    hora: hora
+                };
+
+                prod.stock -= cant;
+                localStorage.setItem('hidrogel_inventario', JSON.stringify(inv));
+            }
+
+            if (!nuevaVenta) return;
+
+            ventas.push(nuevaVenta);
+            localStorage.setItem('ventas_realizadas', JSON.stringify(ventas));
+            document.getElementById('nombreComprador').value = '';
+
+            mostrarVentasRealizadas();
+            cambiarTipoVenta(tipoActual);
+
+            if (confirm('¡Venta registrada! ¿Imprimir ticket ahora?')) {
+                imprimirTicket(nuevaVenta);
+            }
+        });
+
+        function mostrarVentasRealizadas() {
+            var ventas = leerStorage('ventas_realizadas');
+            var lista = document.getElementById('listaVentas');
+            var contador = document.getElementById('contadorVentas');
+            if (!lista || !contador) return;
+
+            lista.innerHTML = '';
+            contador.textContent = ventas.length + ' Ventas';
+
+            if (ventas.length === 0) {
+                lista.innerHTML = '<div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800 text-center"><p class="text-xs text-slate-500">No hay ventas registradas hoy.</p></div>';
+                return;
+            }
+
+            var htmlVentas = '';
+            for (var i = ventas.length - 1; i >= 0; i--) {
+                var v = ventas[i];
+                htmlVentas += '<div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs"><div><p class="font-bold text-slate-200">' + esc(v.descripcion || '') + ' <span class="text-slate-400 font-normal">(' + esc(v.cliente || '') + ')</span></p><p class="text-cyan-400 font-mono mt-0.5">Cobro: Bs ' + (v.montoVenta ? v.montoVenta.toFixed(2) : '0.00') + (v.imei ? ' | IMEI: ' + esc(v.imei) : '') + '</p></div><div class="flex items-center gap-2"><span class="text-[10px] text-slate-500 font-mono">' + esc(v.hora || '') + '</span><button type="button" onclick="reimprimirVenta(' + i + ')" class="bg-slate-800 hover:bg-slate-700 text-cyan-400 p-1.5 rounded-lg border border-cyan-500/30 text-[10px]">🖨️</button></div></div>';
+            }
+            lista.innerHTML = htmlVentas;
+        }
+    </script>
+</body>
+</html>

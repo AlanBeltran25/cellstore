@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Inventario de Celulares - CellStore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .neon-border { border: 1px solid rgba(6, 182, 212, 0.3); }
+        .neon-glow { box-shadow: 0 0 15px rgba(6, 182, 212, 0.15); }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+    <div class="w-full bg-slate-900 min-h-screen flex flex-col justify-between">
+        
+        <!-- Cabecera -->
+        <header class="bg-slate-900/90 backdrop-blur-md p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+            <button onclick="window.location.href='index.html'" class="text-cyan-400 font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl border border-cyan-500/30">⬅ Volver</button>
+
+            <h1 class="text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">CELULARES</h1>
+            <span class="text-lg">📱</span>
+        </header>
+
+        <!-- Contenido principal -->
+        <main class="p-4 flex-grow space-y-4">
+            
+            <!-- Formulario de Registro -->
+            <div class="bg-slate-900/80 p-4 rounded-2xl neon-border neon-glow">
+                <h2 class="font-bold text-cyan-400 text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>📝</span> Registrar Equipo (Nuevo / Usado)
+                </h2>
+                
+                <form id="formCelular" class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">IMEI o Número de Serie</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="imei" placeholder="Ej: 358249012345678" required class="flex-grow p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-cyan-500 focus:outline-none text-slate-100 font-mono">
+                            <button type="button" onclick="abrirEscaner('imei')" class="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 px-3 py-2 rounded-xl border border-cyan-500/30 text-xs font-bold flex items-center gap-1">
+                                📷 Scan
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Modelo y Condición</label>
+                        <input type="text" id="modelo" placeholder="Ej: iPhone 13 (Nuevo) o A54 (Usado 8.5/10)" required class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-cyan-500 focus:outline-none text-slate-100">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Precio Compra (Bs)</label>
+                            <input type="number" id="precioCompra" placeholder="0.00" step="0.01" required class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-cyan-500 focus:outline-none text-slate-100">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Precio Venta (Bs)</label>
+                            <input type="number" id="precioVenta" placeholder="0.00" step="0.01" required class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-cyan-500 focus:outline-none text-slate-100">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-95 text-slate-950 font-black p-3 rounded-xl shadow-lg shadow-cyan-500/20 transition-all text-xs tracking-wider uppercase mt-1">
+                        Guardar en Stock
+                    </button>
+                </form>
+            </div>
+
+            <!-- Lista de Inventario de Celulares -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider">📦 Celulares en Stock</h3>
+                    <span id="contadorStock" class="text-cyan-400 font-mono text-[10px]">0 Unidades</span>
+                </div>
+                <div id="listaCelulares" class="space-y-2">
+                    <!-- Dinámico -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Modal de Escáner de Cámara -->
+        <div id="modalEscaner" class="fixed inset-0 bg-slate-950/90 z-50 flex flex-col items-center justify-center p-4 hidden">
+            <div class="w-full max-w-sm bg-slate-900 border border-cyan-500/30 rounded-2xl p-4 space-y-3 text-center">
+                <h3 class="text-sm font-bold text-cyan-400">📷 Escanear Código de Barras / IMEI</h3>
+                <div class="relative w-full h-64 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
+                    <video id="videoEscaner" class="w-full h-full object-cover" autoplay playsinline muted></video>
+                    <div class="absolute inset-0 border-2 border-dashed border-cyan-500/50 m-8 pointer-events-none rounded-lg"></div>
+                </div>
+
+                <!-- Controles de zoom y linterna -->
+                <div id="controlesCamara" class="hidden space-y-2">
+                    <div id="bloqueZoom" class="hidden flex items-center gap-2">
+                        <span class="text-[10px] text-slate-400">🔍 Zoom</span>
+                        <input type="range" id="sliderZoom" class="flex-grow accent-cyan-500" min="1" max="4" step="0.1" value="1">
+                        <span id="valorZoom" class="text-[10px] text-cyan-400 font-mono w-8">1x</span>
+                    </div>
+                    <button type="button" id="btnLinterna" onclick="alternarLinterna()" class="hidden w-full bg-slate-800 text-cyan-400 border border-cyan-500/30 font-bold p-2 rounded-xl text-xs">
+                        🔦 Linterna
+                    </button>
+                </div>
+
+                <p id="estadoEscaner" class="text-[10px] text-slate-400">Aleja el celular 15-20 cm y usa el zoom si la barra es pequeña.</p>
+                <button type="button" onclick="cerrarEscaner()" class="w-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold p-2.5 rounded-xl text-xs uppercase">
+                    Cancelar / Cerrar Cámara
+                </button>
+            </div>
+        </div>
+
+        <footer class="bg-slate-950 p-3 text-center text-[10px] font-mono text-slate-500 border-t border-slate-800 mt-auto">
+            INVENTORY CORE // LOCALSTORAGE PERSISTENT 🔒
+        </footer>
+    </div>
+
+    <!-- Script de Gestión e IMEI Scanner -->
+    <script>
+        let mediaStream = null;
+        let targetInputEscaneo = null;
+        let linternaEncendida = false;
+        let escaneando = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            mostrarCelulares();
+        });
+
+        document.getElementById('formCelular').addEventListener('submit', function(e) {
+            e.preventDefault();
+            let imei = document.getElementById('imei').value.trim();
+            let modelo = document.getElementById('modelo').value.trim();
+            let precioCompra = parseFloat(document.getElementById('precioCompra').value);
+            let precioVenta = parseFloat(document.getElementById('precioVenta').value);
+
+            if (!imei || !modelo || isNaN(precioCompra) || isNaN(precioVenta)) {
+                alert("Por favor completa todos los campos correctamente.");
+                return;
+            }
+
+            let celulares = JSON.parse(localStorage.getItem('celulares_inventario')) || [];
+            
+            if (celulares.some(c => c.imei === imei)) {
+                alert("¡Atención! Este número de IMEI ya se encuentra registrado en el stock.");
+                return;
+            }
+
+            celulares.push({ imei, modelo, precioCompra, precioVenta });
+            localStorage.setItem('celulares_inventario', JSON.stringify(celulares));
+
+            document.getElementById('formCelular').reset();
+            mostrarCelulares();
+            alert("¡Celular registrado en el inventario con éxito!");
+        });
+
+        function mostrarCelulares() {
+            let celulares = JSON.parse(localStorage.getItem('celulares_inventario')) || [];
+            const lista = document.getElementById('listaCelulares');
+            const contador = document.getElementById('contadorStock');
+            lista.innerHTML = '';
+            contador.textContent = `${celulares.length} Unidades`;
+
+            if (celulares.length === 0) {
+                lista.innerHTML = `<div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800 text-center"><p class="text-xs text-slate-500">No hay celulares registrados en el inventario.</p></div>`;
+                return;
+            }
+
+            celulares.forEach((c, index) => {
+                let gananciaEstimada = c.precioVenta - c.precioCompra;
+                lista.innerHTML += `
+                    <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                        <div>
+                            <p class="font-bold text-slate-200">${c.modelo}</p>
+                            <p class="text-slate-400 font-mono mt-0.5">IMEI: <span class="text-cyan-400">${c.imei}</span></p>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Compra: Bs ${c.precioCompra.toFixed(2)} | Venta: Bs ${c.precioVenta.toFixed(2)} <span class="text-emerald-400">(+Bs ${gananciaEstimada.toFixed(2)})</span></p>
+                        </div>
+                        <button onclick="eliminarCelular(${index})" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 p-2 rounded-xl border border-rose-500/30 text-xs">
+                            🗑️
+                        </button>
+                    </div>`;
+            });
+        }
+
+        function eliminarCelular(index) {
+            if (confirm("¿Estás seguro de eliminar este celular del inventario?")) {
+                let celulares = JSON.parse(localStorage.getItem('celulares_inventario')) || [];
+                celulares.splice(index, 1);
+                localStorage.setItem('celulares_inventario', JSON.stringify(celulares));
+                mostrarCelulares();
+            }
+        }
+
+        // ---------- Validación de IMEI (15 dígitos + algoritmo Luhn) ----------
+        function esIMEIValido(texto) {
+            if (!/^\d{15}$/.test(texto)) return false;
+            let suma = 0;
+            for (let i = 0; i < 15; i++) {
+                let d = parseInt(texto[14 - i], 10);
+                if (i % 2 === 1) {
+                    d *= 2;
+                    if (d > 9) d -= 9;
+                }
+                suma += d;
+            }
+            return suma % 10 === 0;
+        }
+
+        function ponerEstado(msg, color) {
+            const el = document.getElementById('estadoEscaner');
+            el.textContent = msg;
+            el.className = "text-[10px] " + (color || "text-slate-400");
+        }
+
+        // ---------- Escáner ----------
+        async function abrirEscaner(inputId) {
+            targetInputEscaneo = document.getElementById(inputId);
+            const modal = document.getElementById('modalEscaner');
+            modal.classList.remove('hidden');
+            ponerEstado("Aleja el celular 15-20 cm y usa el zoom si la barra es pequeña.");
+
+            try {
+                // Alta resolución + cámara trasera
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                });
+
+                const video = document.getElementById('videoEscaner');
+                video.srcObject = mediaStream;
+
+                await configurarControlesCamara();
+
+                if ('BarcodeDetector' in window) {
+                    iniciarDeteccion(video, modal);
+                } else {
+                    alert("Tu navegador no soporta el escáner nativo automático. Abre la página en Chrome o escribe el IMEI.");
+                }
+            } catch (err) {
+                alert("No se pudo acceder a la cámara: " + err.message);
+                cerrarEscaner();
+            }
+        }
+
+        async function configurarControlesCamara() {
+            const track = mediaStream.getVideoTracks()[0];
+            let caps = {};
+            try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch (e) {}
+
+            const controles = document.getElementById('controlesCamara');
+            const bloqueZoom = document.getElementById('bloqueZoom');
+            const btnLinterna = document.getElementById('btnLinterna');
+            const slider = document.getElementById('sliderZoom');
+            const valorZoom = document.getElementById('valorZoom');
+
+            controles.classList.add('hidden');
+            bloqueZoom.classList.add('hidden');
+            btnLinterna.classList.add('hidden');
+            linternaEncendida = false;
+            btnLinterna.textContent = "🔦 Linterna";
+
+            // Enfoque continuo
+            try {
+                if (caps.focusMode && caps.focusMode.includes('continuous')) {
+                    await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                }
+            } catch (e) {}
+
+            // Zoom
+            if (caps.zoom) {
+                slider.min = caps.zoom.min;
+                slider.max = Math.min(caps.zoom.max, 5);
+                slider.step = caps.zoom.step || 0.1;
+                let inicial = Math.min(2, caps.zoom.max);
+                slider.value = inicial;
+                valorZoom.textContent = inicial.toFixed(1) + "x";
+                try { await track.applyConstraints({ advanced: [{ zoom: inicial }] }); } catch (e) {}
+
+                slider.oninput = async function() {
+                    valorZoom.textContent = parseFloat(slider.value).toFixed(1) + "x";
+                    try { await track.applyConstraints({ advanced: [{ zoom: parseFloat(slider.value) }] }); } catch (e) {}
+                };
+                bloqueZoom.classList.remove('hidden');
+                controles.classList.remove('hidden');
+            }
+
+            // Linterna
+            if (caps.torch) {
+                btnLinterna.classList.remove('hidden');
+                controles.classList.remove('hidden');
+            }
+        }
+
+        async function alternarLinterna() {
+            if (!mediaStream) return;
+            const track = mediaStream.getVideoTracks()[0];
+            linternaEncendida = !linternaEncendida;
+            try {
+                await track.applyConstraints({ advanced: [{ torch: linternaEncendida }] });
+                document.getElementById('btnLinterna').textContent = linternaEncendida ? "🔦 Apagar linterna" : "🔦 Linterna";
+            } catch (e) {
+                linternaEncendida = false;
+            }
+        }
+
+        function iniciarDeteccion(video, modal) {
+            const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'qr_code'] });
+            escaneando = true;
+            let ultimoOtro = '';
+            let repeticiones = 0;
+
+            const ciclo = async () => {
+                if (!escaneando || modal.classList.contains('hidden')) return;
+
+                try {
+                    if (video.readyState >= 2) {
+                        const codes = await detector.detect(video);
+                        const valores = codes.map(c => (c.rawValue || '').trim()).filter(Boolean);
+
+                        // 1) Prioridad: IMEI válido (15 dígitos + Luhn)
+                        const imei = valores.find(esIMEIValido);
+                        if (imei) {
+                            aceptarCodigo(imei);
+                            return;
+                        }
+
+                        // 2) Otros códigos (ej. número de serie): se aceptan si se leen 3 veces seguidas
+                        //    y no parecen un código de producto EAN/UPC (12-13 dígitos)
+                        const otro = valores.find(v => !/^\d{12,13}$/.test(v));
+                        if (otro) {
+                            if (otro === ultimoOtro) repeticiones++;
+                            else { ultimoOtro = otro; repeticiones = 1; }
+                            ponerEstado("Leyendo: " + otro, "text-amber-400");
+                            if (repeticiones >= 3) {
+                                aceptarCodigo(otro);
+                                return;
+                            }
+                        } else if (valores.length > 0) {
+                            ponerEstado("Código de producto ignorado. Busca la barra del IMEI.", "text-amber-400");
+                        }
+                    }
+                } catch (e) {}
+
+                setTimeout(ciclo, 120);
+            };
+            ciclo();
+        }
+
+        function aceptarCodigo(valor) {
+            targetInputEscaneo.value = valor;
+            if (navigator.vibrate) navigator.vibrate(100);
+            cerrarEscaner();
+        }
+
+        function cerrarEscaner() {
+            escaneando = false;
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            document.getElementById('modalEscaner').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

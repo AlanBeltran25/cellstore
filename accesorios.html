@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accesorios - CellStore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .neon-border { border: 1px solid rgba(168, 85, 247, 0.3); }
+        .neon-glow { box-shadow: 0 0 15px rgba(168, 85, 247, 0.15); }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+   <div class="w-full bg-slate-900 min-h-screen flex flex-col justify-between">
+
+        <!-- Cabecera -->
+        <header class="bg-slate-900/90 backdrop-blur-md p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+            <a href="index.html" class="text-purple-400 font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl border border-purple-500/30">⬅ Volver</a>
+            <h1 class="text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">ACCESORIOS / STOCK</h1>
+            <span class="text-lg">🔌</span>
+        </header>
+
+        <!-- Formulario de Registro -->
+        <main class="p-4 flex-grow space-y-4">
+            <div class="bg-slate-900/80 p-4 rounded-2xl neon-border neon-glow">
+                <h2 class="font-bold text-purple-400 text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>➕</span> Nuevo Accesorio
+                </h2>
+                
+                <form id="formAccesorio" class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Nombre del Producto</label>
+                        <input type="text" id="nombreAcc" required placeholder="Ej: Cargador Tipo C Rápido" class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-purple-500 focus:outline-none text-slate-100 placeholder-slate-600">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Cantidad Inicial</label>
+                        <input type="number" id="stockAcc" required min="0" step="1" placeholder="10" class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-purple-500 focus:outline-none text-slate-100 placeholder-slate-600">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Precio Compra (Bs) c/u</label>
+                            <input type="number" id="compraAcc" required min="0" step="0.01" placeholder="15" class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-purple-500 focus:outline-none text-slate-100 placeholder-slate-600">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Precio Venta (Bs) c/u</label>
+                            <input type="number" id="precioAcc" required min="0" step="0.01" placeholder="25" class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-purple-500 focus:outline-none text-slate-100 placeholder-slate-600">
+                        </div>
+                    </div>
+
+                    <p id="previewGananciaAcc" class="text-[11px] text-slate-500 font-mono">Ganancia por pieza: Bs 0.00</p>
+
+                    <button type="submit" class="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 active:scale-95 text-slate-950 font-black p-3 rounded-xl shadow-lg shadow-purple-500/20 transition-all text-xs tracking-wider uppercase mt-2">
+                        Registrar en Stock
+                    </button>
+                </form>
+            </div>
+
+            <!-- Lista de Accesorios -->
+            <div>
+                <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>📦 Inventario de Accesorios</span>
+                    <span id="contadorAcc" class="text-purple-400 font-mono text-[10px]">0 Artículos</span>
+                </h3>
+                <div id="listaAccesorios" class="space-y-2">
+                    <!-- Se cargan dinámicamente -->
+                </div>
+            </div>
+        </main>
+
+        <footer class="bg-slate-950 p-3 text-center text-[10px] font-mono text-slate-500 border-t border-slate-800">
+            ACCESSORY CORE // LOCALSTORAGE 🔒
+        </footer>
+    </div>
+
+    <!-- Script de Accesorios -->
+    <script>
+        const formAcc = document.getElementById('formAccesorio');
+        const listaAccesorios = document.getElementById('listaAccesorios');
+        const contadorAcc = document.getElementById('contadorAcc');
+        const CLAVE = 'accesorios_inventario';
+
+        function leer() {
+            try {
+                const d = JSON.parse(localStorage.getItem(CLAVE));
+                return Array.isArray(d) ? d : [];
+            } catch (e) { return []; }
+        }
+
+        function guardar(lista) {
+            localStorage.setItem(CLAVE, JSON.stringify(lista));
+        }
+
+        function esc(t) {
+            return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function money(n) { return 'Bs ' + (Number(n) || 0).toFixed(2); }
+
+        // Vista previa de ganancia
+        function actualizarPreview() {
+            const c = parseFloat(document.getElementById('compraAcc').value) || 0;
+            const v = parseFloat(document.getElementById('precioAcc').value) || 0;
+            const g = v - c;
+            const el = document.getElementById('previewGananciaAcc');
+            el.textContent = 'Ganancia por pieza: ' + money(g);
+            el.className = 'text-[11px] font-mono ' + (g < 0 ? 'text-rose-400' : 'text-emerald-400');
+        }
+        document.getElementById('compraAcc').addEventListener('input', actualizarPreview);
+        document.getElementById('precioAcc').addEventListener('input', actualizarPreview);
+
+        document.addEventListener('DOMContentLoaded', mostrarAccesorios);
+
+        formAcc.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const nuevoItem = {
+                nombre: document.getElementById('nombreAcc').value.trim(),
+                stock: parseInt(document.getElementById('stockAcc').value, 10),
+                precioCompra: parseFloat(document.getElementById('compraAcc').value),
+                precio: parseFloat(document.getElementById('precioAcc').value)
+            };
+
+            if (!nuevoItem.nombre || isNaN(nuevoItem.stock) || isNaN(nuevoItem.precioCompra) || isNaN(nuevoItem.precio)) {
+                alert('Completa todos los campos correctamente.');
+                return;
+            }
+
+            const accesorios = leer();
+            accesorios.push(nuevoItem);
+            guardar(accesorios);
+
+            formAcc.reset();
+            actualizarPreview();
+            mostrarAccesorios();
+        });
+
+        function mostrarAccesorios() {
+            const accesorios = leer();
+            listaAccesorios.innerHTML = '';
+            contadorAcc.textContent = `${accesorios.length} Artículos`;
+
+            if (accesorios.length === 0) {
+                listaAccesorios.innerHTML = `
+                    <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800 text-center">
+                        <p class="text-xs text-slate-500">No hay accesorios registrados.</p>
+                    </div>`;
+                return;
+            }
+
+            accesorios.forEach((item, index) => {
+                const tieneCosto = item.precioCompra !== undefined && item.precioCompra !== null && !isNaN(item.precioCompra);
+                let lineaPrecios;
+                if (tieneCosto) {
+                    const gan = item.precio - item.precioCompra;
+                    lineaPrecios = `<p class="text-slate-400 font-mono text-[11px]">Compra: ${money(item.precioCompra)} | Venta: <span class="text-purple-400 font-bold">${money(item.precio)}</span> <span class="${gan < 0 ? 'text-rose-400' : 'text-emerald-400'}">(${gan < 0 ? '-' : '+'}${money(Math.abs(gan))})</span></p>`;
+                } else {
+                    lineaPrecios = `<p class="text-slate-400 font-mono text-[11px]">Venta: <span class="text-purple-400 font-bold">${money(item.precio)}</span> <span class="text-amber-400">(sin costo registrado)</span></p>`;
+                }
+
+                listaAccesorios.innerHTML += `
+                    <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                        <div class="space-y-1">
+                            <p class="font-bold text-slate-200 text-sm">${esc(item.nombre)}</p>
+                            ${lineaPrecios}
+                            <p class="text-slate-400 font-mono text-[11px]">Stock: <span class="${item.stock <= 2 ? 'text-rose-400' : 'text-emerald-400'} font-bold text-sm">${item.stock}</span> un.</p>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="cambiarStock(${index}, -1)" class="bg-slate-800 text-slate-200 px-2.5 py-1.5 rounded-lg border border-slate-700 active:scale-90 font-bold">-</button>
+                            <button onclick="cambiarStock(${index}, 1)" class="bg-slate-800 text-slate-200 px-2.5 py-1.5 rounded-lg border border-slate-700 active:scale-90 font-bold">+</button>
+                            <button onclick="editarPrecios(${index})" class="bg-slate-800 text-cyan-400 px-2 py-1.5 rounded-lg border border-cyan-500/30 active:scale-90">✏️</button>
+                            <button onclick="eliminarAccesorio(${index})" class="bg-rose-950/50 border border-rose-800 text-rose-400 p-2 rounded-lg active:scale-90 transition">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function cambiarStock(index, cantidad) {
+            const accesorios = leer();
+            if (!accesorios[index]) return;
+            accesorios[index].stock += cantidad;
+            if (accesorios[index].stock < 0) accesorios[index].stock = 0; // Evitar stock negativo
+            guardar(accesorios);
+            mostrarAccesorios();
+        }
+
+        function editarPrecios(index) {
+            const accesorios = leer();
+            const item = accesorios[index];
+            if (!item) return;
+
+            const actualCompra = (item.precioCompra !== undefined && !isNaN(item.precioCompra)) ? item.precioCompra : '';
+            let c = prompt('Precio de COMPRA (Bs) de "' + item.nombre + '":', actualCompra);
+            if (c === null) return;
+            let v = prompt('Precio de VENTA (Bs):', item.precio);
+            if (v === null) return;
+
+            c = parseFloat(c);
+            v = parseFloat(v);
+            if (isNaN(c) || isNaN(v) || c < 0 || v < 0) {
+                alert('Precios no válidos.');
+                return;
+            }
+            item.precioCompra = c;
+            item.precio = v;
+            guardar(accesorios);
+            mostrarAccesorios();
+        }
+
+        function eliminarAccesorio(index) {
+            const accesorios = leer();
+            if (!accesorios[index]) return;
+            if (confirm('¿Eliminar "' + accesorios[index].nombre + '" del inventario?')) {
+                accesorios.splice(index, 1);
+                guardar(accesorios);
+                mostrarAccesorios();
+            }
+        }
+    </script>
+</body>
+</html>

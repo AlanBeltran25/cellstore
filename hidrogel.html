@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hidrogel & Skins - CellStore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .neon-border { border: 1px solid rgba(245, 158, 11, 0.3); }
+        .neon-glow { box-shadow: 0 0 15px rgba(245, 158, 11, 0.15); }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+    <div class="w-full bg-slate-900 min-h-screen flex flex-col justify-between">
+
+        <!-- Cabecera -->
+        <header class="bg-slate-900/90 backdrop-blur-md p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+            <a href="index.html" class="text-amber-400 font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl border border-amber-500/30">⬅ Volver</a>
+            <h1 class="text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">HIDROGEL & SKINS</h1>
+            <span class="text-lg">✨</span>
+        </header>
+
+        <main class="p-4 flex-grow space-y-4">
+
+            <!-- Formulario de Registro de Inventario -->
+            <div class="bg-slate-900/80 p-4 rounded-2xl neon-border neon-glow">
+                <h2 class="font-bold text-amber-400 text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>📦</span> Registrar Inventario
+                </h2>
+
+                <form id="formInventario" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Categoría</label>
+                            <select id="categoria" class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-amber-500 focus:outline-none text-slate-100">
+                                <option value="hidrogel">Hidrogel</option>
+                                <option value="skin">Skin</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Cantidad (piezas)</label>
+                            <input type="number" id="stock" min="1" step="1" value="1" required class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-amber-500 focus:outline-none text-slate-100">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-400 mb-1">Nombre / Tipo</label>
+                        <input type="text" id="nombre" placeholder="Ej: Hidrogel Mate, Skin Carbono" required class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-amber-500 focus:outline-none text-slate-100 placeholder-slate-600">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Precio Compra (Bs) c/u</label>
+                            <input type="number" id="precioCompra" placeholder="0.00" step="0.01" min="0" required class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-amber-500 focus:outline-none text-slate-100">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Precio Venta (Bs) c/u</label>
+                            <input type="number" id="precioVenta" placeholder="0.00" step="0.01" min="0" required class="w-full p-2.5 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:border-amber-500 focus:outline-none text-slate-100 font-bold text-amber-400">
+                        </div>
+                    </div>
+
+                    <p id="previewGanancia" class="text-[11px] text-slate-500 font-mono">Ganancia por pieza: Bs 0.00</p>
+
+                    <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 active:scale-95 text-slate-950 font-black p-3 rounded-xl shadow-lg shadow-amber-500/20 transition-all text-xs tracking-wider uppercase mt-2">
+                        Guardar en Stock
+                    </button>
+                </form>
+            </div>
+
+            <!-- Lista de inventario -->
+            <div>
+                <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>📦 Stock de Hidrogel & Skins</span>
+                    <span id="contadorStock" class="text-amber-400 font-mono text-[10px]">0 Piezas</span>
+                </h3>
+                <div id="listaInventario" class="space-y-2"></div>
+            </div>
+        </main>
+
+        <footer class="bg-slate-950 p-3 text-center text-[10px] font-mono text-slate-500 border-t border-slate-800">
+            INVENTORY CORE // LOCALSTORAGE 🔒
+        </footer>
+    </div>
+
+    <script>
+        var CLAVE = 'hidrogel_inventario';
+
+        function leer() {
+            try {
+                var d = JSON.parse(localStorage.getItem(CLAVE));
+                return Array.isArray(d) ? d : [];
+            } catch (e) { return []; }
+        }
+
+        function guardar(lista) {
+            localStorage.setItem(CLAVE, JSON.stringify(lista));
+        }
+
+        function esc(t) {
+            return String(t).replace(/[&<>"']/g, function(c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        function money(n) { return 'Bs ' + (Number(n) || 0).toFixed(2); }
+
+        // Vista previa de ganancia al escribir precios
+        function actualizarPreview() {
+            var c = parseFloat(document.getElementById('precioCompra').value) || 0;
+            var v = parseFloat(document.getElementById('precioVenta').value) || 0;
+            var g = v - c;
+            var el = document.getElementById('previewGanancia');
+            el.textContent = 'Ganancia por pieza: ' + money(g);
+            el.className = 'text-[11px] font-mono ' + (g < 0 ? 'text-rose-400' : 'text-emerald-400');
+        }
+        document.getElementById('precioCompra').addEventListener('input', actualizarPreview);
+        document.getElementById('precioVenta').addEventListener('input', actualizarPreview);
+
+        document.addEventListener('DOMContentLoaded', mostrarInventario);
+
+        document.getElementById('formInventario').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            var categoria = document.getElementById('categoria').value;
+            var nombre = document.getElementById('nombre').value.trim();
+            var stock = parseInt(document.getElementById('stock').value, 10);
+            var precioCompra = parseFloat(document.getElementById('precioCompra').value);
+            var precioVenta = parseFloat(document.getElementById('precioVenta').value);
+
+            if (!nombre || isNaN(stock) || stock < 1 || isNaN(precioCompra) || isNaN(precioVenta)) {
+                alert('Completa todos los campos correctamente.');
+                return;
+            }
+
+            var lista = leer();
+            var existente = -1;
+            for (var i = 0; i < lista.length; i++) {
+                if (lista[i].categoria === categoria && lista[i].nombre.toLowerCase() === nombre.toLowerCase()) {
+                    existente = i;
+                    break;
+                }
+            }
+
+            if (existente >= 0) {
+                if (!confirm('Ya existe "' + lista[existente].nombre + '". ¿Sumar ' + stock + ' piezas y actualizar sus precios?')) {
+                    return;
+                }
+                lista[existente].stock += stock;
+                lista[existente].precioCompra = precioCompra;
+                lista[existente].precioVenta = precioVenta;
+            } else {
+                lista.push({
+                    categoria: categoria,
+                    nombre: nombre,
+                    stock: stock,
+                    precioCompra: precioCompra,
+                    precioVenta: precioVenta
+                });
+            }
+
+            guardar(lista);
+            document.getElementById('formInventario').reset();
+            actualizarPreview();
+            mostrarInventario();
+        });
+
+        function mostrarInventario() {
+            var lista = leer();
+            var cont = document.getElementById('listaInventario');
+            var totalPiezas = 0;
+
+            if (lista.length === 0) {
+                cont.innerHTML = '<div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800 text-center"><p class="text-xs text-slate-500">No hay productos en el inventario.</p></div>';
+                document.getElementById('contadorStock').textContent = '0 Piezas';
+                return;
+            }
+
+            var html = '';
+            for (var i = 0; i < lista.length; i++) {
+                var p = lista[i];
+                var gan = p.precioVenta - p.precioCompra;
+                totalPiezas += p.stock;
+
+                var etiqueta = p.categoria === 'skin' ? '🎨 Skin' : '💧 Hidrogel';
+                var colorStock = p.stock <= 2 ? 'text-rose-400' : 'text-amber-400';
+
+                html += '<div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-xs">' +
+                    '<div class="flex justify-between items-start">' +
+                        '<div>' +
+                            '<p class="font-bold text-slate-200 text-sm">' + esc(p.nombre) + '</p>' +
+                            '<p class="text-[10px] text-slate-500">' + etiqueta + '</p>' +
+                        '</div>' +
+                        '<p class="font-mono font-bold ' + colorStock + '">Stock: ' + p.stock + '</p>' +
+                    '</div>' +
+                    '<p class="text-[11px] text-slate-400 font-mono mt-2">Compra: ' + money(p.precioCompra) +
+                        ' | Venta: ' + money(p.precioVenta) +
+                        ' <span class="' + (gan < 0 ? 'text-rose-400' : 'text-emerald-400') + '">(' + (gan < 0 ? '-' : '+') + money(Math.abs(gan)) + ')</span></p>' +
+                    '<div class="flex gap-2 mt-2">' +
+                        '<button onclick="sumarStock(' + i + ')" class="flex-1 bg-slate-800 text-amber-400 border border-amber-500/30 py-1.5 rounded-lg text-[11px] font-bold active:scale-95">➕ Stock</button>' +
+                        '<button onclick="editarPrecios(' + i + ')" class="flex-1 bg-slate-800 text-cyan-400 border border-cyan-500/30 py-1.5 rounded-lg text-[11px] font-bold active:scale-95">✏️ Precios</button>' +
+                        '<button onclick="eliminarProducto(' + i + ')" class="bg-rose-950/50 border border-rose-800 text-rose-400 px-3 py-1.5 rounded-lg active:scale-90">🗑️</button>' +
+                    '</div>' +
+                '</div>';
+            }
+            cont.innerHTML = html;
+
+            document.getElementById('contadorStock').textContent = totalPiezas + ' Piezas';
+        }
+
+        function sumarStock(i) {
+            var lista = leer();
+            if (!lista[i]) return;
+            var r = prompt('¿Cuántas piezas quieres agregar a "' + lista[i].nombre + '"?', '1');
+            var n = parseInt(r, 10);
+            if (isNaN(n) || n < 1) return;
+            lista[i].stock += n;
+            guardar(lista);
+            mostrarInventario();
+        }
+
+        function editarPrecios(i) {
+            var lista = leer();
+            if (!lista[i]) return;
+            var c = prompt('Nuevo precio de COMPRA (Bs):', lista[i].precioCompra);
+            if (c === null) return;
+            var v = prompt('Nuevo precio de VENTA (Bs):', lista[i].precioVenta);
+            if (v === null) return;
+            c = parseFloat(c); v = parseFloat(v);
+            if (isNaN(c) || isNaN(v) || c < 0 || v < 0) {
+                alert('Precios no válidos.');
+                return;
+            }
+            lista[i].precioCompra = c;
+            lista[i].precioVenta = v;
+            guardar(lista);
+            mostrarInventario();
+        }
+
+        function eliminarProducto(i) {
+            var lista = leer();
+            if (!lista[i]) return;
+            if (confirm('¿Eliminar "' + lista[i].nombre + '" del inventario?')) {
+                lista.splice(i, 1);
+                guardar(lista);
+                mostrarInventario();
+            }
+        }
+    </script>
+</body>
+</html>

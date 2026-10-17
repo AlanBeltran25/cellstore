@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Respaldo de Datos - CellStore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .neon-border { border: 1px solid rgba(59, 130, 246, 0.3); }
+        .neon-glow { box-shadow: 0 0 15px rgba(59, 130, 246, 0.15); }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<div class="w-full bg-slate-900 min-h-screen flex flex-col justify-between">
+
+        <!-- Cabecera -->
+        <header class="bg-slate-900/90 backdrop-blur-md p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+            <a href="index.html" class="text-blue-400 font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl border border-blue-500/30">⬅ Volver</a>
+            <h1 class="text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">RESPALDO & SEGURIDAD</h1>
+            <span class="text-lg">💾</span>
+        </header>
+
+        <main class="p-4 flex-grow space-y-4">
+
+            <!-- Estado actual -->
+            <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <h2 class="font-bold text-slate-300 text-xs uppercase tracking-wider">📋 Datos en este dispositivo</h2>
+                <div id="estadoDatos" class="grid grid-cols-2 gap-2 text-xs"></div>
+                <p id="estadoRespaldo" class="text-[11px] font-mono"></p>
+            </div>
+
+            <div class="bg-slate-900/80 p-4 rounded-2xl neon-border neon-glow space-y-4">
+                <h2 class="font-bold text-blue-400 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <span>🛡️</span> Copia de Seguridad del Negocio
+                </h2>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Toda la información se guarda solo en este celular. Si limpias los datos del navegador o lo desinstalas, se pierde.
+                    Exporta una copia seguido y envíala por <strong class="text-slate-200">WhatsApp</strong> o correo para poder restaurarla cuando quieras.
+                </p>
+
+                <!-- 1. Exportar -->
+                <div class="space-y-2 pt-2">
+                    <label class="block text-[11px] font-semibold text-slate-300">1. Crear copia (Exportar)</label>
+                    <button onclick="compartirDatos()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-slate-950 font-black p-3 rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-xs tracking-wider uppercase">
+                        📤 Compartir (WhatsApp / Correo)
+                    </button>
+                    <button onclick="exportarDatos()" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 active:scale-95 text-slate-950 font-black p-3 rounded-xl shadow-lg shadow-blue-500/20 transition-all text-xs tracking-wider uppercase">
+                        📥 Descargar archivo (.JSON)
+                    </button>
+                </div>
+
+                <!-- 2. Importar -->
+                <div class="space-y-2 pt-3 border-t border-slate-800">
+                    <label class="block text-[11px] font-semibold text-slate-300">2. Restaurar copia</label>
+                    <input type="file" id="archivoRestaurar" accept=".json,application/json,text/plain" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-blue-400 hover:file:bg-slate-700 cursor-pointer">
+                    <p class="text-[10px] text-amber-400">⚠️ Restaurar reemplaza los datos actuales. Antes se guarda una copia automática para poder deshacer.</p>
+                    <button onclick="importarDatos()" class="w-full bg-slate-800 hover:bg-slate-700 active:scale-95 text-blue-400 font-bold p-3 rounded-xl border border-blue-500/30 transition-all text-xs tracking-wider uppercase mt-1">
+                        📤 Restaurar desde Archivo
+                    </button>
+                </div>
+
+                <!-- 3. Deshacer -->
+                <div id="bloqueDeshacer" class="hidden space-y-2 pt-3 border-t border-slate-800">
+                    <label class="block text-[11px] font-semibold text-slate-300">3. ¿Te equivocaste de archivo?</label>
+                    <p id="infoDeshacer" class="text-[10px] text-slate-500"></p>
+                    <button onclick="deshacerRestauracion()" class="w-full bg-rose-950/50 hover:bg-rose-900/50 active:scale-95 text-rose-400 font-bold p-3 rounded-xl border border-rose-500/30 transition-all text-xs tracking-wider uppercase">
+                        ↩️ Deshacer última restauración
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="bg-slate-950 p-3 text-center text-[10px] font-mono text-slate-500 border-t border-slate-800">
+            BACKUP CORE // PROTECCIÓN 🔒
+        </footer>
+    </div>
+
+    <script>
+        // hidrogel_registros es el formato anterior; se respalda para no perder historial viejo
+        const CLAVES = [
+            'celulares_inventario',
+            'accesorios_inventario',
+            'hidrogel_inventario',
+            'hidrogel_registros',
+            'ventas_realizadas',
+            'historial_cierres'
+        ];
+        const ETIQUETAS = {
+            celulares_inventario: '📱 Celulares',
+            accesorios_inventario: '🔌 Accesorios',
+            hidrogel_inventario: '✨ Hidrogel/Skins',
+            hidrogel_registros: '🗂️ Reg. antiguos',
+            ventas_realizadas: '🛒 Ventas hoy',
+            historial_cierres: '📅 Cierres'
+        };
+
+        function leerClave(k) {
+            try {
+                const raw = localStorage.getItem(k);
+                return raw === null ? null : JSON.parse(raw);
+            } catch (e) { return null; }
+        }
+
+        function contar(v) { return Array.isArray(v) ? v.length : 0; }
+
+        function nombreArchivo() {
+            return 'cellstore_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+        }
+
+        function construirRespaldo() {
+            const datos = {};
+            CLAVES.forEach(k => datos[k] = leerClave(k));
+            return { app: 'CellStore', version: 2, fecha: new Date().toISOString(), datos: datos };
+        }
+
+        function marcarRespaldo() {
+            localStorage.setItem('ultimo_respaldo', new Date().toISOString());
+            mostrarEstado();
+        }
+
+        // ---------- Estado ----------
+        function mostrarEstado() {
+            let html = '';
+            CLAVES.forEach(k => {
+                const n = contar(leerClave(k));
+                if (k === 'hidrogel_registros' && n === 0) return;
+                html += '<div class="bg-slate-950 p-2 rounded-lg border border-slate-800 flex justify-between"><span class="text-slate-400">' +
+                        ETIQUETAS[k] + '</span><span class="font-mono font-bold text-cyan-400">' + n + '</span></div>';
+            });
+            document.getElementById('estadoDatos').innerHTML = html;
+
+            const el = document.getElementById('estadoRespaldo');
+            const ult = localStorage.getItem('ultimo_respaldo');
+            if (!ult) {
+                el.textContent = '⚠️ Aún no has hecho ningún respaldo.';
+                el.className = 'text-[11px] font-mono text-rose-400';
+            } else {
+                const dias = Math.floor((Date.now() - new Date(ult).getTime()) / 86400000);
+                const cuando = dias <= 0 ? 'hoy' : (dias === 1 ? 'hace 1 día' : 'hace ' + dias + ' días');
+                el.textContent = (dias > 7 ? '⚠️ ' : '✅ ') + 'Último respaldo: ' + cuando;
+                el.className = 'text-[11px] font-mono ' + (dias > 7 ? 'text-amber-400' : 'text-emerald-400');
+            }
+
+            // Botón deshacer
+            const previo = leerPrevio();
+            const bloque = document.getElementById('bloqueDeshacer');
+            if (previo) {
+                document.getElementById('infoDeshacer').textContent =
+                    'Copia automática guardada el ' + new Date(previo.fecha).toLocaleString() + '.';
+                bloque.classList.remove('hidden');
+            } else {
+                bloque.classList.add('hidden');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', mostrarEstado);
+
+        // ---------- Exportar ----------
+        function exportarDatos() {
+            const json = JSON.stringify(construirRespaldo(), null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = nombreArchivo();
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 2000);
+            marcarRespaldo();
+        }
+
+        async function compartirDatos() {
+            const json = JSON.stringify(construirRespaldo(), null, 2);
+            const nombre = nombreArchivo();
+            const intentos = [
+                new File([json], nombre, { type: 'application/json' }),
+                new File([json], nombre, { type: 'text/plain' })
+            ];
+
+            for (const archivo of intentos) {
+                if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+                    try {
+                        await navigator.share({ files: [archivo], title: 'Respaldo CellStore' });
+                        marcarRespaldo();
+                    } catch (e) {
+                        // El usuario canceló el menú de compartir: no se marca como respaldado
+                    }
+                    return;
+                }
+            }
+            alert('Este navegador no permite compartir archivos. Se descargará el respaldo.');
+            exportarDatos();
+        }
+
+        // ---------- Importar ----------
+        // Acepta el formato nuevo ({app, datos}) y el antiguo (claves sueltas con texto JSON)
+        function extraerDatos(obj) {
+            if (!obj || typeof obj !== 'object') return null;
+
+            if (obj.app === 'CellStore' && obj.datos && typeof obj.datos === 'object') {
+                const d = {};
+                CLAVES.forEach(k => { if (k in obj.datos) d[k] = obj.datos[k]; });
+                return d;
+            }
+
+            if (!CLAVES.some(k => k in obj)) return null;
+            const d = {};
+            CLAVES.forEach(k => {
+                if (!(k in obj)) return;               // ausente: no se toca
+                if (obj[k] === null) { d[k] = null; return; }
+                try { d[k] = typeof obj[k] === 'string' ? JSON.parse(obj[k]) : obj[k]; }
+                catch (e) { d[k] = null; }
+            });
+            return d;
+        }
+
+        function aplicarDatos(d) {
+            CLAVES.forEach(k => {
+                if (!(k in d)) return;                 // clave ausente en el archivo: se deja como está
+                if (d[k] === null) localStorage.removeItem(k);
+                else localStorage.setItem(k, JSON.stringify(d[k]));
+            });
+        }
+
+        function leerPrevio() {
+            try { return JSON.parse(localStorage.getItem('respaldo_previo')); }
+            catch (e) { return null; }
+        }
+
+        function importarDatos() {
+            const input = document.getElementById('archivoRestaurar');
+            if (input.files.length === 0) {
+                alert("Selecciona primero un archivo de respaldo (.json).");
+                return;
+            }
+
+            const lector = new FileReader();
+            lector.onload = function(e) {
+                let datos;
+                try {
+                    datos = extraerDatos(JSON.parse(e.target.result));
+                } catch (err) {
+                    datos = null;
+                }
+                if (!datos) {
+                    alert("El archivo no es un respaldo válido de CellStore.");
+                    return;
+                }
+
+                let resumen = '';
+                CLAVES.forEach(k => {
+                    if (!(k in datos)) return;
+                    if (k === 'hidrogel_registros' && contar(datos[k]) === 0) return;
+                    resumen += '\n• ' + ETIQUETAS[k] + ': ' + contar(datos[k]);
+                });
+
+                if (!confirm('Este respaldo contiene:' + resumen +
+                    '\n\nSe REEMPLAZARÁN los datos actuales de este dispositivo. ¿Continuar?')) {
+                    return;
+                }
+
+                // Copia automática del estado actual para poder deshacer
+                try {
+                    const previo = construirRespaldo();
+                    localStorage.setItem('respaldo_previo', JSON.stringify({ fecha: previo.fecha, datos: previo.datos }));
+                } catch (err) {
+                    if (!confirm('No se pudo guardar la copia automática. ¿Restaurar de todos modos?')) return;
+                }
+
+                aplicarDatos(datos);
+                alert("¡Datos restaurados con éxito!");
+                window.location.href = 'index.html';
+            };
+            lector.readAsText(input.files[0]);
+        }
+
+        function deshacerRestauracion() {
+            const previo = leerPrevio();
+            if (!previo || !previo.datos) {
+                alert("No hay una copia previa para recuperar.");
+                return;
+            }
+            if (!confirm('Se recuperarán los datos que tenías antes de la última restauración. ¿Continuar?')) return;
+
+            // El estado previo guardó todas las claves (null = vacía), así que se reemplaza todo
+            aplicarDatos(previo.datos);
+            localStorage.removeItem('respaldo_previo');
+            alert("Datos anteriores recuperados.");
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

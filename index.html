@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CellStore CyberPOS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+    <!-- Contenedor principal a pantalla completa -->
+    <div class="w-full bg-slate-900 min-h-screen flex flex-col justify-between">
+        
+        <!-- Cabecera -->
+        <header class="bg-slate-900/90 backdrop-blur-md p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+            <div>
+                <h1 class="text-lg font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 flex items-center gap-2">
+                    CELLSTORE <span class="text-[10px] bg-cyan-950 text-cyan-400 border border-cyan-800 px-1.5 py-0.5 rounded font-mono">OS v2.0</span>
+                </h1>
+                <p class="text-[10px] text-slate-400 font-mono">Terminal de Control Táctil</p>
+            </div>
+            <div class="w-3 h-3 rounded-full bg-cyan-400 animate-pulse shadow-lg shadow-cyan-500/50"></div>
+        </header>
+
+        <!-- Cuadrícula de Menú Principal con Enlaces Nativos (<a>) -->
+        <main class="p-4 grid grid-cols-2 gap-3">
+
+            <!-- Aviso de respaldo (solo aparece si hace falta) -->
+            <a id="avisoRespaldo" href="respaldo.html" class="hidden col-span-2 bg-amber-500/10 border border-amber-500/40 active:scale-95 p-3 rounded-2xl text-left transition-all">
+                <span id="avisoTitulo" class="block text-xs font-bold text-amber-400"></span>
+                <span class="block text-[10px] text-amber-400/70 mt-0.5">Toca aquí para hacer tu copia de seguridad ahora.</span>
+            </a>
+            
+            <!-- 1. Nueva Venta -->
+            <a href="venta.html" class="col-span-2 bg-slate-800/60 hover:bg-slate-800 border border-cyan-500/30 active:scale-95 p-4 rounded-2xl text-left transition-all group relative overflow-hidden block">
+                <div class="absolute -right-2 -bottom-2 text-4xl opacity-10 group-hover:opacity-25 transition-opacity">🛒</div>
+                <span class="block text-2xl mb-1 text-cyan-400">🛒</span>
+                <span class="block font-bold text-sm text-slate-200">Nueva Venta</span>
+                <span class="text-[10px] text-cyan-400/80 uppercase tracking-wider font-semibold">COBRAR / DESCONTAR STOCK</span>
+            </a>
+
+            <!-- 2. Celulares -->
+            <a href="celulares.html" class="bg-slate-800/60 hover:bg-slate-800 border border-cyan-500/30 active:scale-95 p-4 rounded-2xl text-left transition-all group relative overflow-hidden block">
+                <div class="absolute -right-2 -bottom-2 text-4xl opacity-10 group-hover:opacity-25 transition-opacity">📱</div>
+                <span class="block text-2xl mb-1 text-cyan-400">📱</span>
+                <span class="block font-bold text-sm text-slate-200">Celulares</span>
+                <span class="text-[10px] text-cyan-400/80 uppercase tracking-wider font-semibold">STOCK & IMEI</span>
+            </a>
+
+            <!-- 3. Accesorios -->
+            <a href="accesorios.html" class="bg-slate-800/60 hover:bg-slate-800 border border-purple-500/30 active:scale-95 p-4 rounded-2xl text-left transition-all group relative overflow-hidden block">
+                <div class="absolute -right-2 -bottom-2 text-4xl opacity-10 group-hover:opacity-25 transition-opacity">🔌</div>
+                <span class="block text-2xl mb-1 text-purple-400">🔌</span>
+                <span class="block font-bold text-sm text-slate-200">Accesorios</span>
+                <span class="text-[10px] text-purple-400/80 uppercase tracking-wider font-semibold">CARGADORES / STOCK</span>
+            </a>
+
+            <!-- 4. Hidrogel -->
+            <a href="hidrogel.html" class="bg-slate-800/60 hover:bg-slate-800 border border-amber-500/30 active:scale-95 p-4 rounded-2xl text-left transition-all group relative overflow-hidden block">
+                <div class="absolute -right-2 -bottom-2 text-4xl opacity-10 group-hover:opacity-25 transition-opacity">✨</div>
+                <span class="block text-2xl mb-1 text-amber-400">✨</span>
+                <span class="block font-bold text-sm text-slate-200">Hidrogel</span>
+                <span class="text-[10px] text-amber-400/80 uppercase tracking-wider font-semibold">STOCK & SKINS</span>
+            </a>
+
+            <!-- 5. Corte Caja -->
+            <a href="caja.html" class="bg-slate-800/60 hover:bg-slate-800 border border-rose-500/30 active:scale-95 p-4 rounded-2xl text-left transition-all group relative overflow-hidden block">
+                <div class="absolute -right-2 -bottom-2 text-4xl opacity-10 group-hover:opacity-25 transition-opacity">📊</div>
+                <span class="block text-2xl mb-1 text-rose-400">📊</span>
+                <span class="block font-bold text-sm text-slate-200">Corte Caja</span>
+                <span class="text-[10px] text-rose-400/80 uppercase tracking-wider font-semibold">INVERSIÓN & UTILIDAD</span>
+            </a>
+
+            <!-- 6. Respaldo -->
+            <a href="respaldo.html" class="col-span-2 bg-slate-800/60 hover:bg-slate-800 border border-blue-500/30 active:scale-95 p-4 rounded-2xl text-left transition-all group relative overflow-hidden block">
+                <div class="absolute -right-2 -bottom-2 text-4xl opacity-10 group-hover:opacity-25 transition-opacity">💾</div>
+                <span class="block text-2xl mb-1 text-blue-400">💾</span>
+                <span class="block font-bold text-sm text-slate-200">Respaldo</span>
+                <span class="text-[10px] text-blue-400/80 uppercase tracking-wider font-semibold">GUARDAR / RESTAURAR DATOS</span>
+            </a>
+
+        </main>
+
+        <!-- Pie de página -->
+        <footer class="bg-slate-950 p-3 text-center text-[10px] font-mono text-slate-500 border-t border-slate-800 mt-auto">
+            SYSTEM CORE v2.0 // LOCALSTORAGE SECURE 🔒
+        </footer>
+    </div>
+
+    <script>
+        // Avisa si hay datos y no se ha hecho respaldo en más de 7 días
+        (function revisarRespaldo() {
+            try {
+                var claves = ['celulares_inventario', 'accesorios_inventario', 'hidrogel_inventario', 'ventas_realizadas', 'historial_cierres'];
+                var hayDatos = claves.some(function(k) {
+                    try {
+                        var d = JSON.parse(localStorage.getItem(k));
+                        return Array.isArray(d) && d.length > 0;
+                    } catch (e) { return false; }
+                });
+                if (!hayDatos) return;
+
+                var ult = localStorage.getItem('ultimo_respaldo');
+                var titulo = null;
+                if (!ult) {
+                    titulo = '⚠️ Aún no has hecho ningún respaldo';
+                } else {
+                    var dias = Math.floor((Date.now() - new Date(ult).getTime()) / 86400000);
+                    if (dias > 7) titulo = '⚠️ Llevas ' + dias + ' días sin respaldar tus datos';
+                }
+
+                if (titulo) {
+                    document.getElementById('avisoTitulo').textContent = titulo;
+                    document.getElementById('avisoRespaldo').classList.remove('hidden');
+                }
+            } catch (e) {}
+        })();
+    </script>
+</body>
+</html>

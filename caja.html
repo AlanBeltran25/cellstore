@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corte de Caja - CellStore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .neon-border { border: 1px solid rgba(244, 63, 94, 0.3); }
+        .neon-glow { box-shadow: 0 0 15px rgba(244, 63, 94, 0.15); }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+    <div class="w-full bg-slate-900 min-h-screen flex flex-col justify-between">
+
+        <!-- Cabecera -->
+        <header class="bg-slate-900/90 backdrop-blur-md p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+            <a href="index.html" class="text-rose-400 font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl border border-rose-500/30">⬅ Volver</a>
+            <h1 class="text-base font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-red-500">CORTE DE CAJA</h1>
+            <span class="text-lg">📊</span>
+        </header>
+
+        <main class="p-4 flex-grow space-y-4">
+
+            <!-- Balance general del día -->
+            <div class="bg-slate-900/80 p-4 rounded-2xl border border-emerald-500/30 shadow-lg shadow-emerald-500/10 space-y-3">
+                <h2 class="font-bold text-emerald-400 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <span>💵</span> Balance del Día Actual
+                </h2>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <p class="text-[10px] text-slate-400 uppercase font-semibold">Total Ingresos Ventas</p>
+                        <p id="totalIngresos" class="text-lg font-mono font-bold text-cyan-400 mt-1">Bs 0.00</p>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <p class="text-[10px] text-slate-400 uppercase font-semibold">Ganancia Neta Limpia</p>
+                        <p id="totalGananciaNeta" class="text-lg font-mono font-bold text-emerald-400 mt-1">Bs 0.00</p>
+                    </div>
+                </div>
+
+                <button onclick="cerrarYArchivarDia()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-slate-950 font-black p-2.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 mt-1">
+                    📁 Cerrar Día y Guardar en Historial
+                </button>
+            </div>
+
+            <!-- Ventas de hoy por categoría -->
+            <div class="space-y-2">
+                <h2 class="font-bold text-slate-400 text-xs uppercase tracking-wider px-1">🛒 Ventas de Hoy por Categoría</h2>
+                <div id="ventasPorCategoria" class="space-y-2"></div>
+            </div>
+
+            <!-- Capital en stock por categoría -->
+            <div class="bg-slate-900/80 p-4 rounded-2xl border border-rose-500/30 shadow-lg shadow-rose-500/10 space-y-3">
+                <h2 class="font-bold text-rose-400 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <span>🔒</span> Capital en Stock (Sin Vender)
+                </h2>
+                <div id="stockPorCategoria" class="space-y-2"></div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-rose-500/30 flex justify-between items-center">
+                    <span class="text-[11px] text-slate-400 uppercase font-semibold">Capital total en stock</span>
+                    <span id="capitalTotal" class="text-lg font-mono font-bold text-rose-400">Bs 0.00</span>
+                </div>
+                <p id="avisoSinCosto" class="hidden text-[10px] text-amber-400"></p>
+            </div>
+
+            <!-- Historial de cierres -->
+            <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <h3 class="font-bold text-cyan-400 text-xs uppercase tracking-wider flex items-center justify-between">
+                    <span>📅 Historial de Cierres</span>
+                    <span id="totalAcumuladoMes" class="text-cyan-400 font-mono text-[11px]">Bs 0.00 ganancia</span>
+                </h3>
+                <div id="listaHistorial" class="space-y-2 max-h-64 overflow-y-auto pr-1"></div>
+            </div>
+        </main>
+
+        <footer class="bg-slate-950 p-3 text-center text-[10px] font-mono text-slate-500 border-t border-slate-800">
+            FINANCIAL CORE // HISTORIAL ACTIVO 🔒
+        </footer>
+    </div>
+
+    <script>
+        const CATEGORIAS = [
+            { id: 'celular',   nombre: 'Celulares',  icono: '📱', texto: 'text-cyan-400',   borde: 'border-cyan-500/30' },
+            { id: 'accesorio', nombre: 'Accesorios', icono: '🔌', texto: 'text-purple-400', borde: 'border-purple-500/30' },
+            { id: 'hidrogel',  nombre: 'Hidrogel',   icono: '💧', texto: 'text-amber-400',  borde: 'border-amber-500/30' },
+            { id: 'skin',      nombre: 'Skins',      icono: '🎨', texto: 'text-pink-400',   borde: 'border-pink-500/30' }
+        ];
+
+        function leer(clave) {
+            try {
+                const d = JSON.parse(localStorage.getItem(clave));
+                return Array.isArray(d) ? d : [];
+            } catch (e) { return []; }
+        }
+
+        function money(n) { return 'Bs ' + (Number(n) || 0).toFixed(2); }
+        function num(x) { const n = parseFloat(x); return isNaN(n) ? 0 : n; }
+
+        // Deduce la categoría de ventas antiguas que no la guardaron
+        function categoriaDeVenta(v) {
+            if (v.categoria) return v.categoria;
+            const d = (v.descripcion || '').toLowerCase();
+            if (d.startsWith('celular') || (v.imei && v.imei !== 'N/A')) return 'celular';
+            if (d.startsWith('accesorio')) return 'accesorio';
+            if (d.startsWith('skin') || d.includes('skin')) return 'skin';
+            if (d.startsWith('hidrogel') || d.startsWith('servicio')) return 'hidrogel';
+            return 'accesorio';
+        }
+
+        function resumenPorCategoria(ventas) {
+            const r = {};
+            CATEGORIAS.forEach(c => r[c.id] = { ventas: 0, ingresos: 0, ganancia: 0 });
+            ventas.forEach(v => {
+                const cat = categoriaDeVenta(v);
+                if (!r[cat]) r[cat] = { ventas: 0, ingresos: 0, ganancia: 0 };
+                r[cat].ventas += 1;
+                r[cat].ingresos += num(v.montoVenta);
+                r[cat].ganancia += num(v.ganancia);
+            });
+            return r;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            calcularCorte();
+            mostrarHistorialCierres();
+        });
+
+        function calcularCorte() {
+            const ventas = leer('ventas_realizadas');
+            const resumen = resumenPorCategoria(ventas);
+
+            let totalIngresos = 0, totalGanancia = 0;
+            CATEGORIAS.forEach(c => {
+                totalIngresos += resumen[c.id].ingresos;
+                totalGanancia += resumen[c.id].ganancia;
+            });
+            document.getElementById('totalIngresos').textContent = money(totalIngresos);
+            document.getElementById('totalGananciaNeta').textContent = (totalGanancia < 0 ? '-' : '+') + money(Math.abs(totalGanancia));
+
+            // Tarjetas de ventas por categoría: ingresos = capital recuperado + ganancia
+            let html = '';
+            CATEGORIAS.forEach(c => {
+                const r = resumen[c.id];
+                const capital = r.ingresos - r.ganancia;
+                html += `
+                    <div class="bg-slate-900/80 p-3 rounded-2xl border ${c.borde}">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-xs ${c.texto}">${c.icono} ${c.nombre}</span>
+                            <span class="text-[10px] text-slate-500 font-mono">${r.ventas} venta${r.ventas === 1 ? '' : 's'}</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                                <p class="text-[9px] text-slate-400 uppercase">Ingresos</p>
+                                <p class="text-sm font-mono font-bold text-cyan-400">${money(r.ingresos)}</p>
+                            </div>
+                            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                                <p class="text-[9px] text-slate-400 uppercase">Capital</p>
+                                <p class="text-sm font-mono font-bold text-rose-400">${money(capital)}</p>
+                            </div>
+                            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+                                <p class="text-[9px] text-slate-400 uppercase">Ganancia</p>
+                                <p class="text-sm font-mono font-bold ${r.ganancia < 0 ? 'text-rose-400' : 'text-emerald-400'}">${money(r.ganancia)}</p>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('ventasPorCategoria').innerHTML = html;
+
+            calcularStock();
+        }
+
+        function calcularStock() {
+            const stock = {};
+            CATEGORIAS.forEach(c => stock[c.id] = { piezas: 0, capital: 0, gananciaPot: 0, sinCosto: 0 });
+
+            // Celulares: cada registro es una unidad
+            leer('celulares_inventario').forEach(c => {
+                const s = stock.celular;
+                s.piezas += 1;
+                s.capital += num(c.precioCompra);
+                s.gananciaPot += num(c.precioVenta) - num(c.precioCompra);
+            });
+
+            // Accesorios: stock * precio
+            leer('accesorios_inventario').forEach(a => {
+                const s = stock.accesorio;
+                const cant = parseInt(a.stock, 10) || 0;
+                s.piezas += cant;
+                if (a.precioCompra === undefined || a.precioCompra === null || isNaN(a.precioCompra)) {
+                    if (cant > 0) s.sinCosto += 1;
+                } else {
+                    s.capital += num(a.precioCompra) * cant;
+                    s.gananciaPot += (num(a.precio) - num(a.precioCompra)) * cant;
+                }
+            });
+
+            // Hidrogel y skins: misma lista, separada por categoría
+            leer('hidrogel_inventario').forEach(p => {
+                const s = stock[p.categoria === 'skin' ? 'skin' : 'hidrogel'];
+                const cant = parseInt(p.stock, 10) || 0;
+                s.piezas += cant;
+                s.capital += num(p.precioCompra) * cant;
+                s.gananciaPot += (num(p.precioVenta) - num(p.precioCompra)) * cant;
+            });
+
+            let html = '';
+            let capitalTotal = 0;
+            let sinCostoTotal = 0;
+            CATEGORIAS.forEach(c => {
+                const s = stock[c.id];
+                capitalTotal += s.capital;
+                sinCostoTotal += s.sinCosto;
+                html += `
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold ${c.texto}">${c.icono} ${c.nombre}</span>
+                            <span class="text-[10px] text-slate-500 font-mono">${s.piezas} pza${s.piezas === 1 ? '' : 's'}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <div>
+                                <p class="text-[9px] text-slate-400 uppercase">Capital invertido</p>
+                                <p class="text-sm font-mono font-bold text-rose-400">${money(s.capital)}</p>
+                            </div>
+                            <div>
+                                <p class="text-[9px] text-slate-400 uppercase">Ganancia potencial</p>
+                                <p class="text-sm font-mono font-bold ${s.gananciaPot < 0 ? 'text-rose-400' : 'text-emerald-400'}">${money(s.gananciaPot)}</p>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('stockPorCategoria').innerHTML = html;
+            document.getElementById('capitalTotal').textContent = money(capitalTotal);
+
+            const aviso = document.getElementById('avisoSinCosto');
+            if (sinCostoTotal > 0) {
+                aviso.textContent = '⚠️ ' + sinCostoTotal + ' accesorio(s) sin precio de compra no se cuentan en el capital. Edítalos con ✏️ en el módulo Accesorios.';
+                aviso.classList.remove('hidden');
+            } else {
+                aviso.classList.add('hidden');
+            }
+        }
+
+        function cerrarYArchivarDia() {
+            const ventas = leer('ventas_realizadas');
+            if (ventas.length === 0) {
+                alert("No hay ventas registradas hoy para cerrar.");
+                return;
+            }
+            if (!confirm('¿Cerrar el día y guardar en el historial? Se vaciarán las ventas de hoy.')) return;
+
+            const resumen = resumenPorCategoria(ventas);
+            let totalIngresos = 0, gananciaNeta = 0;
+            CATEGORIAS.forEach(c => {
+                totalIngresos += resumen[c.id].ingresos;
+                gananciaNeta += resumen[c.id].ganancia;
+            });
+
+            const historial = leer('historial_cierres');
+            historial.push({
+                fecha: new Date().toLocaleDateString(),
+                ingresos: totalIngresos,
+                ganancia: gananciaNeta,
+                cantidadVentas: ventas.length,
+                porCategoria: resumen
+            });
+
+            localStorage.setItem('historial_cierres', JSON.stringify(historial));
+            localStorage.removeItem('ventas_realizadas');
+
+            alert("¡Cierre de día guardado con éxito en el historial!");
+            calcularCorte();
+            mostrarHistorialCierres();
+        }
+
+        function mostrarHistorialCierres() {
+            const historial = leer('historial_cierres');
+            const lista = document.getElementById('listaHistorial');
+            const acumulado = document.getElementById('totalAcumuladoMes');
+            lista.innerHTML = '';
+
+            const sumaGanancia = historial.reduce((acc, h) => acc + num(h.ganancia), 0);
+            acumulado.textContent = money(sumaGanancia) + ' ganancia';
+
+            if (historial.length === 0) {
+                lista.innerHTML = '<p class="text-xs text-slate-500 text-center py-2">No hay cierres guardados aún.</p>';
+                return;
+            }
+
+            historial.slice().reverse().forEach(h => {
+                let chips = '';
+                if (h.porCategoria) {
+                    CATEGORIAS.forEach(c => {
+                        const r = h.porCategoria[c.id];
+                        if (r && r.ventas > 0) {
+                            chips += `<span class="text-[10px] font-mono ${c.texto}">${c.icono} ${money(r.ganancia)}</span> `;
+                        }
+                    });
+                }
+                lista.innerHTML += `
+                    <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-slate-200">${h.fecha}</span>
+                            <span class="text-emerald-400 font-mono font-bold">+${money(h.ganancia)}</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Ventas: ${h.cantidadVentas} | Ingresos: ${money(h.ingresos)}</p>
+                        ${chips ? `<div class="flex flex-wrap gap-x-3 mt-1">${chips}</div>` : ''}
+                    </div>`;
+            });
+        }
+    </script>
+</body>
+</html>
