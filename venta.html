@@ -188,6 +188,40 @@
             return '<div class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center"><p class="text-xs text-rose-400">' + texto + '</p></div>';
         }
 
+        function etiquetaCelular(c) {
+            return (c.modelo || 'Celular') + ' - IMEI: ' + (c.imei || 'N/A') + ' (Bs ' + (c.precioVenta || 0) + ')';
+        }
+
+        // Busca el celular escrito: coincidencia exacta o, si solo hay una parcial (ej. el IMEI), esa
+        function buscarIndiceCelular(lista, texto) {
+            texto = (texto || '').trim().toLowerCase();
+            if (!texto) return -1;
+            var hallados = [];
+            for (var i = 0; i < lista.length; i++) {
+                var e = etiquetaCelular(lista[i]).toLowerCase();
+                if (e === texto) return i;
+                if (e.indexOf(texto) !== -1) hallados.push(i);
+            }
+            return hallados.length === 1 ? hallados[0] : -1;
+        }
+
+        function etiquetaAccesorio(a) {
+            return (a.nombre || 'Accesorio') + ' (Stock: ' + (a.stock || 0) + ') - Bs ' + (a.precio || 0);
+        }
+
+        // Índice del elemento cuyo texto coincide exacto o, si solo hay una parcial, esa
+        function buscarIndiceTexto(lista, texto, etiqueta) {
+            texto = (texto || '').trim().toLowerCase();
+            if (!texto) return -1;
+            var hallados = [];
+            for (var i = 0; i < lista.length; i++) {
+                var e = etiqueta(lista[i]).toLowerCase();
+                if (e === texto) return i;
+                if (e.indexOf(texto) !== -1) hallados.push(i);
+            }
+            return hallados.length === 1 ? hallados[0] : -1;
+        }
+
         function cambiarTipoVenta(tipo) {
             tipoActual = tipo;
 
@@ -208,10 +242,9 @@
                 }
                 var opcionesHTML = '';
                 for (var i = 0; i < celulares.length; i++) {
-                    var c = celulares[i];
-                    opcionesHTML += '<option value="' + i + '">' + esc(c.modelo || 'Celular') + ' - IMEI: ' + esc(c.imei || 'N/A') + ' (Bs ' + (c.precioVenta || 0) + ')</option>';
+                    opcionesHTML += '<option value="' + esc(etiquetaCelular(celulares[i])) + '"></option>';
                 }
-                contenedor.innerHTML = '<div><label class="' + CLASE_LABEL + '">Seleccionar Celular</label><select id="indexCelular" class="' + CLASE_INPUT + '">' + opcionesHTML + '</select></div>';
+                contenedor.innerHTML = '<div><label class="' + CLASE_LABEL + '">Celular (escribe modelo o IMEI) - ' + celulares.length + ' en stock</label><input type="text" id="indexCelular" list="listaCelulares" autocomplete="off" placeholder="Ej: A54 o 3582..." class="' + CLASE_INPUT + '"><datalist id="listaCelulares">' + opcionesHTML + '</datalist></div>';
 
             } else if (tipo === 'accesorio') {
                 var accesorios = leerStorage('accesorios_inventario');
@@ -221,10 +254,9 @@
                 }
                 var opcionesHTML = '';
                 for (var i = 0; i < accesorios.length; i++) {
-                    var a = accesorios[i];
-                    opcionesHTML += '<option value="' + i + '">' + esc(a.nombre || 'Accesorio') + ' (Stock: ' + (a.stock || 0) + ') - Bs ' + (a.precio || 0) + '</option>';
+                    opcionesHTML += '<option value="' + esc(etiquetaAccesorio(accesorios[i])) + '"></option>';
                 }
-                contenedor.innerHTML = '<div class="space-y-2"><div><label class="' + CLASE_LABEL + '">Seleccionar Accesorio</label><select id="indexAccesorio" class="' + CLASE_INPUT + '">' + opcionesHTML + '</select></div><div><label class="' + CLASE_LABEL + '">Cantidad</label><input type="number" id="cantAccesorioVenta" value="1" min="1" class="' + CLASE_INPUT + '"></div></div>';
+                contenedor.innerHTML = '<div class="space-y-2"><div><label class="' + CLASE_LABEL + '">Accesorio (escribe para buscar) - ' + accesorios.length + ' productos</label><input type="text" id="indexAccesorio" list="listaAccesorios" autocomplete="off" placeholder="Ej: cable, cargador..." class="' + CLASE_INPUT + '"><datalist id="listaAccesorios">' + opcionesHTML + '</datalist></div><div><label class="' + CLASE_LABEL + '">Cantidad</label><input type="number" id="cantAccesorioVenta" value="1" min="1" class="' + CLASE_INPUT + '"></div></div>';
 
             } else if (tipo === 'hidrogel' || tipo === 'skin') {
                 var inv = leerStorage('hidrogel_inventario');
@@ -282,11 +314,15 @@
             var nuevaVenta = null;
 
             if (tipoActual === 'celular') {
-                var selectCel = document.getElementById('indexCelular');
-                if (!selectCel) return;
-                var idx = selectCel.value;
+                var inputCel = document.getElementById('indexCelular');
+                if (!inputCel) return;
                 var celulares = leerStorage('celulares_inventario');
-                if (celulares.length === 0 || idx === undefined) return;
+                if (celulares.length === 0) return;
+                var idx = buscarIndiceCelular(celulares, inputCel.value);
+                if (idx < 0) {
+                    alert('Escribe el modelo o IMEI y elige un celular de las sugerencias.');
+                    return;
+                }
 
                 var celVendido = celulares[idx];
                 var ganancia = parseFloat(celVendido.precioVenta || 0) - parseFloat(celVendido.precioCompra || 0);
@@ -306,12 +342,16 @@
                 localStorage.setItem('celulares_inventario', JSON.stringify(celulares));
 
             } else if (tipoActual === 'accesorio') {
-                var selectAcc = document.getElementById('indexAccesorio');
-                if (!selectAcc) return;
-                var idx = selectAcc.value;
+                var inputAcc = document.getElementById('indexAccesorio');
+                if (!inputAcc) return;
                 var cantVenta = parseInt(document.getElementById('cantAccesorioVenta').value) || 1;
                 var accesorios = leerStorage('accesorios_inventario');
-                if (accesorios.length === 0 || idx === undefined) return;
+                if (accesorios.length === 0) return;
+                var idx = buscarIndiceTexto(accesorios, inputAcc.value, etiquetaAccesorio);
+                if (idx < 0) {
+                    alert('Escribe el accesorio y elige uno de las sugerencias.');
+                    return;
+                }
 
                 var acc = accesorios[idx];
                 if (acc.stock < cantVenta) {
@@ -515,8 +555,14 @@
             document.getElementById('devMonto').value = '';
 
             if (cat === 'celular') {
+                devCelLista = devCelularesVendidos();
+                var opcDev = '';
+                devCelLista.forEach(function(d) { opcDev += '<option value="' + esc(etiquetaCelular(d)) + '"></option>'; });
                 cont.innerHTML =
                     '<div class="space-y-2">' +
+                        '<div><label class="' + CLASE_LABEL + '">Buscar celular vendido (modelo o IMEI)</label>' +
+                            '<input type="text" id="devBuscar" list="listaDevCel" autocomplete="off" oninput="devAutocompletarCelular()" placeholder="Escribe y elige para autocompletar..." class="' + CLS_DEV + '">' +
+                            '<datalist id="listaDevCel">' + opcDev + '</datalist></div>' +
                         '<div><label class="' + CLASE_LABEL + '">IMEI o Número de Serie</label>' +
                             '<input type="text" id="devImei" placeholder="Ej: 358249012345678" class="' + CLS_DEV + ' font-mono"></div>' +
                         '<div><label class="' + CLASE_LABEL + '">Modelo y Condición</label>' +
@@ -532,7 +578,7 @@
                 inv = leerStorage('accesorios_inventario');
                 for (var i = 0; i < inv.length; i++) {
                     hay = true;
-                    opciones += '<option value="' + i + '">' + esc(inv[i].nombre || 'Accesorio') + '</option>';
+                    opciones += '<option value="' + esc(inv[i].nombre || 'Accesorio') + '"></option>';
                 }
             } else {
                 inv = leerStorage('hidrogel_inventario');
@@ -553,11 +599,22 @@
             cont.innerHTML =
                 '<div class="space-y-2">' +
                     '<div><label class="' + CLASE_LABEL + '">Producto devuelto</label>' +
-                        '<select id="devProducto" onchange="devActualizarMonto()" class="' + CLS_DEV + '">' + opciones + '</select></div>' +
+                        (cat === 'accesorio'
+                            ? '<input type="text" id="devProducto" list="listaDevAcc" autocomplete="off" oninput="devActualizarMonto()" placeholder="Escribe el accesorio..." class="' + CLS_DEV + '"><datalist id="listaDevAcc">' + opciones + '</datalist>'
+                            : '<select id="devProducto" onchange="devActualizarMonto()" class="' + CLS_DEV + '">' + opciones + '</select>') + '</div>' +
                     '<div><label class="' + CLASE_LABEL + '">Cantidad</label>' +
                         '<input type="number" id="devCant" value="1" min="1" step="1" oninput="devActualizarMonto()" class="' + CLS_DEV + '"></div>' +
                 '</div>';
             devActualizarMonto();
+        }
+
+        // Producto elegido: accesorio = texto escrito; hidrogel/skin = combo box
+        function devProductoSeleccionado(cat, sel, inv) {
+            if (cat === 'accesorio') {
+                var i = buscarIndiceTexto(inv, sel.value, function(a) { return a.nombre || 'Accesorio'; });
+                return i < 0 ? null : inv[i];
+            }
+            return inv[sel.value];
         }
 
         // Sugiere el monto a devolver según el precio de venta del inventario (se puede cambiar)
@@ -568,10 +625,53 @@
             if (!sel || !cantEl) return;
             var cant = parseInt(cantEl.value, 10) || 1;
             var inv = leerStorage(cat === 'accesorio' ? 'accesorios_inventario' : 'hidrogel_inventario');
-            var prod = inv[sel.value];
+            var prod = devProductoSeleccionado(cat, sel, inv);
             if (!prod) return;
             var precio = parseFloat(cat === 'accesorio' ? prod.precio : prod.precioVenta) || 0;
             document.getElementById('devMonto').value = (precio * cant).toFixed(2);
+        }
+
+        var devCelLista = [];
+
+        // Celulares vendidos (hoy y en cierres) que ya no están en el inventario
+        function devCelularesVendidos() {
+            var todas = leerStorage('ventas_realizadas');
+            leerStorage('historial_cierres').forEach(function(h) {
+                if (Array.isArray(h.ventas)) todas = todas.concat(h.ventas);
+            });
+            var enStock = {};
+            leerStorage('celulares_inventario').forEach(function(c) { if (c.imei) enStock[c.imei] = true; });
+            var porImei = {};
+            todas.forEach(function(v) {
+                if (v.esDevolucion || v.anulada) return;
+                var esCel = v.categoria === 'celular' || (!v.categoria && v.imei && v.imei !== 'N/A');
+                if (!esCel) return;
+                var monto = parseFloat(v.montoVenta) || 0;
+                var d = (v.item && v.item.datos) || {
+                    imei: v.imei,
+                    modelo: (v.descripcion || '').replace(/^Celular:\s*/i, ''),
+                    precioCompra: monto - (parseFloat(v.ganancia) || 0),
+                    precioVenta: monto
+                };
+                if (!d.imei || d.imei === 'N/A' || enStock[d.imei]) return;
+                porImei[d.imei] = d;
+            });
+            return Object.keys(porImei).map(function(k) { return porImei[k]; });
+        }
+
+        // Al elegir una sugerencia, rellena IMEI, modelo, costo y monto
+        function devAutocompletarCelular() {
+            var t = document.getElementById('devBuscar').value.trim().toLowerCase();
+            if (!t) return;
+            var d = null;
+            devCelLista.forEach(function(x) {
+                if (etiquetaCelular(x).toLowerCase() === t || String(x.imei).toLowerCase() === t) d = x;
+            });
+            if (!d) return;
+            document.getElementById('devImei').value = d.imei || '';
+            document.getElementById('devModelo').value = d.modelo || '';
+            document.getElementById('devCosto').value = d.precioCompra != null ? d.precioCompra : '';
+            document.getElementById('devMonto').value = d.precioVenta != null ? d.precioVenta : '';
         }
 
         function registrarDevolucion() {
@@ -618,9 +718,9 @@
                     return;
                 }
                 inv = leerStorage(cat === 'accesorio' ? 'accesorios_inventario' : 'hidrogel_inventario');
-                prod = inv[sel.value];
+                prod = devProductoSeleccionado(cat, sel, inv);
                 if (!prod) {
-                    alert('Producto no válido.');
+                    alert('Producto no válido. Escribe el nombre y elige una sugerencia.');
                     return;
                 }
                 costo = (parseFloat(prod.precioCompra) || 0) * cant;
