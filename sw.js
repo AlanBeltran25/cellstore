@@ -1,6 +1,6 @@
 // Service worker de CellStore.
 // Sube el número de VERSION cada vez que publiques cambios para que los celulares se actualicen.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = 'cellstore-' + VERSION;
 
 const ARCHIVOS = [
@@ -60,7 +60,8 @@ self.addEventListener('fetch', (e) => {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
       try {
-        const r = await fetch(req);
+        // no-cache: siempre pregunta al servidor si hay una versión nueva (evita ver archivos viejos)
+        const r = await fetch(req, { cache: 'no-cache' });
         if (r && r.ok) cache.put(req, r.clone());
         return r;
       } catch (err) {
