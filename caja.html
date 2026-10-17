@@ -289,6 +289,7 @@
                 cantidadVentas: ventas.filter(v => !v.esDevolucion).length,
                 devoluciones: ventas.filter(v => v.esDevolucion).length,
                 anuladas: anuladas,
+                ventas: ventas,
                 porCategoria: resumen
             });
 
@@ -300,10 +301,162 @@
             mostrarHistorialCierres();
         }
 
+        const abiertos = new Set();   // cierres con el detalle desplegado
+
+        function esc(t) {
+            return String(t).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        // Borra un cierre guardado (de cualquier día). No cambia el stock ni las ventas de hoy.
+        function eliminarCierre(index) {
+            const historial = leer('historial_cierres');
+            const h = historial[index];
+            if (!h) return;
+            const g = num(h.ganancia);
+            if (!confirm('¿Eliminar el cierre del ' + h.fecha + '?\n\nVentas: ' + h.cantidadVentas +
+                ' | Ganancia: ' + (g < 0 ? '-' : '+') + money(Math.abs(g)) +
+                '\n\nDejará de contar en el acumulado. Esto no se puede deshacer (haz un respaldo antes si dudas).')) {
+                return;
+            }
+            historial.splice(index, 1);
+            localStorage.setItem('historial_cierres', JSON.stringify(historial));
+            abiertos.clear();
+            mostrarHistorialCierres();
+        }
+
+        function toggleDetalle(i) {
+            if (abiertos.has(i)) abiertos.delete(i); else abiertos.add(i);
+            mostrarHistorialCierres();
+        }
+
+        // Devuelve el producto de una venta al inventario. Retorna un aviso (texto) si hay algo que comentar.
+        function restaurarStock(v) {
+            const desc = v.descripcion || '';
+            let cat = v.categoria;
+            if (!cat) {
+                const d = desc.toLowerCase();
+                if (d.startsWith('celular') || (v.imei && v.imei !== 'N/A')) cat = 'celular';
+                else if (d.startsWith('accesorio')) cat = 'accesorio';
+                else if (d.startsWith('skin')) cat = 'skin';
+                else if (d.startsWith('hidrogel')) cat = 'hidrogel';
+            }
+
+            const nombre = (v.item && v.item.nombre) || desc.replace(/^(Accesorio|Hidrogel|Skin):\s*/i, '').replace(/\s*\(x\d+\)\s*$/, '');
+            let cant = (v.item && v.item.cant) || 0;
+            if (!cant) {
+                const m = desc.match(/\(x(\d+)\)\s*$/);
+                cant = m ? parseInt(m[1], 10) : 1;
+            }
+            const monto = num(v.montoVenta);
+            const costoTotal = monto - num(v.ganancia);
+            let aviso = '';
+
+            if (cat === 'celular') {
+                const celulares = leer('celulares_inventario');
+                const datos = (v.item && v.item.datos) || {
+                    imei: v.imei,
+                    modelo: desc.replace(/^Celular:\s*/i, ''),
+                    precioCompra: costoTotal,
+                    precioVenta: monto
+                };
+                if (!celulares.some(c => c.imei && c.imei === datos.imei)) {
+                    celulares.push(datos);
+                    localStorage.setItem('celulares_inventario', JSON.stringify(celulares));
+                }
+            } else if (cat === 'accesorio') {
+                const accesorios = leer('accesorios_inventario');
+                const prod = accesorios.find(a => (a.nombre || '').toLowerCase() === nombre.toLowerCase());
+                if (prod) {
+                    prod.stock = (parseInt(prod.stock, 10) || 0) + cant;
+                } else {
+                    accesorios.push({ nombre: nombre, stock: cant, precio: monto / cant, precioCompra: costoTotal / cant });
+                    aviso = '\n(El accesorio ya no estaba en el inventario; se volvió a crear.)';
+                }
+                localStorage.setItem('accesorios_inventario', JSON.stringify(accesorios));
+            } else if (cat === 'hidrogel' || cat === 'skin') {
+                const inv = leer('hidrogel_inventario');
+                const prod = inv.find(p => p.categoria === cat && (p.nombre || '').toLowerCase() === nombre.toLowerCase());
+                if (prod) {
+                    prod.stock = (parseInt(prod.stock, 10) || 0) + cant;
+                } else {
+                    inv.push({ categoria: cat, nombre: nombre, stock: cant, precioCompra: costoTotal / cant, precioVenta: monto / cant });
+                    aviso = '\n(El producto ya no estaba en el inventario; se volvió a crear.)';
+                }
+                localStorage.setItem('hidrogel_inventario', JSON.stringify(inv));
+            } else {
+                aviso = '\n(Venta antigua sin producto de inventario: no se devolvió stock.)';
+            }
+            return aviso;
+        }
+
+        // Devolver una venta de un día ya cerrado: corrige ese cierre y regresa el producto al stock
+        function anularVentaCerrada(iCierre, iVenta) {
+            const historial = leer('historial_cierres');
+            const h = historial[iCierre];
+            const v = h && Array.isArray(h.ventas) ? h.ventas[iVenta] : null;
+            if (!v || v.anulada || v.esDevolucion) return;
+
+            const monto = num(v.montoVenta);
+            const gan = num(v.ganancia);
+            if (!confirm('¿Registrar la devolución de esta venta del ' + h.fecha + '?\n\n' + (v.descripcion || '') +
+                '\nCliente: ' + (v.cliente || '') + '\nMonto: ' + money(monto) +
+                '\n\nEl producto volverá al stock y el cierre de ese día se corregirá (ingresos -' + money(monto) +
+                ', ganancia -' + money(Math.abs(gan)) + ').')) {
+                return;
+            }
+
+            const aviso = restaurarStock(v);
+
+            v.anulada = true;
+            v.anuladaEl = new Date().toLocaleDateString();
+
+            // Recalcular los totales de ese cierre
+            const resumen = resumenPorCategoria(h.ventas);
+            let ingresos = 0, ganancia = 0;
+            Object.keys(resumen).forEach(k => { ingresos += resumen[k].ingresos; ganancia += resumen[k].ganancia; });
+            h.ingresos = ingresos;
+            h.ganancia = ganancia;
+            h.cantidadVentas = h.ventas.filter(x => !x.anulada && !x.esDevolucion).length;
+            h.devoluciones = h.ventas.filter(x => x.esDevolucion && !x.anulada).length;
+            h.anuladas = (h.anuladas || 0) + 1;
+            h.porCategoria = resumen;
+
+            localStorage.setItem('historial_cierres', JSON.stringify(historial));
+            mostrarHistorialCierres();
+            alert('Devolución registrada en el cierre del ' + h.fecha + '.' + aviso);
+        }
+
+        function htmlDetalle(h, i) {
+            let html = '<div class="mt-2 space-y-1.5">';
+            h.ventas.map((v, j) => ({ v, j })).reverse().forEach(({ v, j }) => {
+                const monto = money(Math.abs(num(v.montoVenta)));
+                const nombre = esc(v.descripcion || '') + ' <span class="text-slate-400 font-normal">(' + esc(v.cliente || '') + ')</span>';
+                if (v.esDevolucion) {
+                    html += `<div class="bg-amber-950/20 border border-amber-700/40 rounded-lg p-2">
+                        <p class="text-[11px] text-amber-300 font-bold">${nombre}</p>
+                        <p class="text-[10px] text-amber-400 font-mono">Devuelto: ${monto} · ${esc(v.hora || '')}</p></div>`;
+                } else if (v.anulada) {
+                    html += `<div class="bg-slate-900/50 border border-rose-900/50 rounded-lg p-2 opacity-70">
+                        <p class="text-[11px] text-slate-500 font-bold line-through">${nombre}</p>
+                        <p class="text-[10px] text-rose-400 font-mono">DEVUELTA${v.anuladaEl ? ' el ' + esc(v.anuladaEl) : ''} · ${monto}</p></div>`;
+                } else {
+                    html += `<div class="bg-slate-900 border border-slate-800 rounded-lg p-2 flex justify-between items-center gap-2">
+                        <div>
+                            <p class="text-[11px] text-slate-200 font-bold">${nombre}</p>
+                            <p class="text-[10px] text-cyan-400 font-mono">${monto}${v.imei ? ' · IMEI: ' + esc(v.imei) : ''} · ${esc(v.hora || '')}</p>
+                        </div>
+                        <button onclick="anularVentaCerrada(${i}, ${j})" class="bg-rose-950/50 text-rose-400 px-2 py-1.5 rounded-lg border border-rose-800 text-[10px] font-bold shrink-0 active:scale-95">Devolver</button>
+                    </div>`;
+                }
+            });
+            return html + '</div>';
+        }
+
         function mostrarHistorialCierres() {
             const historial = leer('historial_cierres');
             const lista = document.getElementById('listaHistorial');
             const acumulado = document.getElementById('totalAcumuladoMes');
+            const scroll = lista.scrollTop;
             lista.innerHTML = '';
 
             const sumaGanancia = historial.reduce((acc, h) => acc + num(h.ganancia), 0);
@@ -314,26 +467,42 @@
                 return;
             }
 
-            historial.slice().reverse().forEach(h => {
+            historial.map((h, i) => ({ h, i })).reverse().forEach(({ h, i }) => {
                 let chips = '';
                 if (h.porCategoria) {
                     CATEGORIAS.forEach(c => {
                         const r = h.porCategoria[c.id];
-                        if (r && r.ventas > 0) {
+                        if (r && (r.ventas > 0 || r.devoluciones > 0)) {
                             chips += `<span class="text-[10px] font-mono ${c.texto}">${c.icono} ${money(r.ganancia)}</span> `;
                         }
                     });
                 }
+
+                const tieneDetalle = Array.isArray(h.ventas);
+                const abierto = abiertos.has(i);
+                let detalle = '';
+                if (abierto) {
+                    detalle = tieneDetalle
+                        ? htmlDetalle(h, i)
+                        : '<p class="text-[10px] text-slate-500 mt-2">Este cierre es anterior al detalle por venta. Para una devolución de ese día usa "Registrar devolución" en Nueva Venta.</p>';
+                }
+
                 lista.innerHTML += `
                     <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-slate-200">${h.fecha}</span>
-                            <span class="${num(h.ganancia) < 0 ? 'text-rose-400' : 'text-emerald-400'} font-mono font-bold">${num(h.ganancia) < 0 ? '-' : '+'}${money(Math.abs(num(h.ganancia)))}</span>
+                        <div class="flex justify-between items-center gap-2">
+                            <span class="font-bold text-slate-200">${esc(h.fecha)}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="${num(h.ganancia) < 0 ? 'text-rose-400' : 'text-emerald-400'} font-mono font-bold">${num(h.ganancia) < 0 ? '-' : '+'}${money(Math.abs(num(h.ganancia)))}</span>
+                                <button onclick="eliminarCierre(${i})" class="bg-rose-950/50 border border-rose-800 text-rose-400 px-2 py-1 rounded-lg text-[11px] active:scale-90">🗑️</button>
+                            </div>
                         </div>
                         <p class="text-[10px] text-slate-400 mt-0.5">Ventas: ${h.cantidadVentas} | Ingresos: ${money(h.ingresos)}${h.devoluciones > 0 ? ' | Devoluciones: ' + h.devoluciones : ''}${h.anuladas > 0 ? ' | Anuladas: ' + h.anuladas : ''}</p>
                         ${chips ? `<div class="flex flex-wrap gap-x-3 mt-1">${chips}</div>` : ''}
+                        <button onclick="toggleDetalle(${i})" class="mt-2 w-full bg-slate-900 text-cyan-400 border border-cyan-500/30 py-1.5 rounded-lg text-[11px] font-bold">${abierto ? '▲ Ocultar detalle' : '▼ Ver detalle' + (tieneDetalle ? ' (' + h.ventas.length + ')' : '')}</button>
+                        ${detalle}
                     </div>`;
             });
+            lista.scrollTop = scroll;
         }
     </script>
 </body>
