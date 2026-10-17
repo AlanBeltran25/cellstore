@@ -52,6 +52,7 @@
             <!-- Ventas de hoy por categoría -->
             <div class="space-y-2">
                 <h2 class="font-bold text-slate-400 text-xs uppercase tracking-wider px-1">🛒 Ventas de Hoy por Categoría</h2>
+                <p id="avisoAnuladas" class="hidden text-[10px] text-rose-400 px-1"></p>
                 <div id="ventasPorCategoria" class="space-y-2"></div>
             </div>
 
@@ -114,13 +115,15 @@
 
         function resumenPorCategoria(ventas) {
             const r = {};
-            CATEGORIAS.forEach(c => r[c.id] = { ventas: 0, ingresos: 0, ganancia: 0 });
+            CATEGORIAS.forEach(c => r[c.id] = { ventas: 0, devoluciones: 0, ingresos: 0, ganancia: 0 });
             ventas.forEach(v => {
+                if (v.anulada) return;           // las ventas anuladas no cuentan
                 const cat = categoriaDeVenta(v);
-                if (!r[cat]) r[cat] = { ventas: 0, ingresos: 0, ganancia: 0 };
-                r[cat].ventas += 1;
-                r[cat].ingresos += num(v.montoVenta);
-                r[cat].ganancia += num(v.ganancia);
+                if (!r[cat]) r[cat] = { ventas: 0, devoluciones: 0, ingresos: 0, ganancia: 0 };
+                if (v.esDevolucion) r[cat].devoluciones += 1;
+                else r[cat].ventas += 1;
+                r[cat].ingresos += num(v.montoVenta);   // en devoluciones es negativo
+                r[cat].ganancia += num(v.ganancia);     // en devoluciones es negativo
             });
             return r;
         }
@@ -133,6 +136,15 @@
         function calcularCorte() {
             const ventas = leer('ventas_realizadas');
             const resumen = resumenPorCategoria(ventas);
+
+            const nAnuladas = ventas.filter(v => v.anulada).length;
+            const aviso = document.getElementById('avisoAnuladas');
+            if (nAnuladas > 0) {
+                aviso.textContent = '↩️ ' + nAnuladas + ' venta' + (nAnuladas === 1 ? '' : 's') + ' anulada' + (nAnuladas === 1 ? '' : 's') + ' (no incluida' + (nAnuladas === 1 ? '' : 's') + ' en estos totales)';
+                aviso.classList.remove('hidden');
+            } else {
+                aviso.classList.add('hidden');
+            }
 
             let totalIngresos = 0, totalGanancia = 0;
             CATEGORIAS.forEach(c => {
@@ -151,7 +163,7 @@
                     <div class="bg-slate-900/80 p-3 rounded-2xl border ${c.borde}">
                         <div class="flex justify-between items-center mb-2">
                             <span class="font-bold text-xs ${c.texto}">${c.icono} ${c.nombre}</span>
-                            <span class="text-[10px] text-slate-500 font-mono">${r.ventas} venta${r.ventas === 1 ? '' : 's'}</span>
+                            <span class="text-[10px] text-slate-500 font-mono">${r.ventas} venta${r.ventas === 1 ? '' : 's'}${r.devoluciones > 0 ? ' · ' + r.devoluciones + ' dev.' : ''}</span>
                         </div>
                         <div class="grid grid-cols-3 gap-2">
                             <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
@@ -246,9 +258,18 @@
         }
 
         function cerrarYArchivarDia() {
-            const ventas = leer('ventas_realizadas');
-            if (ventas.length === 0) {
+            const todas = leer('ventas_realizadas');
+            const ventas = todas.filter(v => !v.anulada);
+            const anuladas = todas.length - ventas.length;
+            if (todas.length === 0) {
                 alert("No hay ventas registradas hoy para cerrar.");
+                return;
+            }
+            if (ventas.length === 0) {
+                if (confirm('Solo hay ventas anuladas. ¿Limpiarlas sin guardar cierre?')) {
+                    localStorage.removeItem('ventas_realizadas');
+                    calcularCorte();
+                }
                 return;
             }
             if (!confirm('¿Cerrar el día y guardar en el historial? Se vaciarán las ventas de hoy.')) return;
@@ -265,7 +286,9 @@
                 fecha: new Date().toLocaleDateString(),
                 ingresos: totalIngresos,
                 ganancia: gananciaNeta,
-                cantidadVentas: ventas.length,
+                cantidadVentas: ventas.filter(v => !v.esDevolucion).length,
+                devoluciones: ventas.filter(v => v.esDevolucion).length,
+                anuladas: anuladas,
                 porCategoria: resumen
             });
 
@@ -305,9 +328,9 @@
                     <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
                         <div class="flex justify-between items-center">
                             <span class="font-bold text-slate-200">${h.fecha}</span>
-                            <span class="text-emerald-400 font-mono font-bold">+${money(h.ganancia)}</span>
+                            <span class="${num(h.ganancia) < 0 ? 'text-rose-400' : 'text-emerald-400'} font-mono font-bold">${num(h.ganancia) < 0 ? '-' : '+'}${money(Math.abs(num(h.ganancia)))}</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-0.5">Ventas: ${h.cantidadVentas} | Ingresos: ${money(h.ingresos)}</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Ventas: ${h.cantidadVentas} | Ingresos: ${money(h.ingresos)}${h.devoluciones > 0 ? ' | Devoluciones: ' + h.devoluciones : ''}${h.anuladas > 0 ? ' | Anuladas: ' + h.anuladas : ''}</p>
                         ${chips ? `<div class="flex flex-wrap gap-x-3 mt-1">${chips}</div>` : ''}
                     </div>`;
             });
